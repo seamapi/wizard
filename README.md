@@ -9,6 +9,11 @@ The AI powered Seam setup wizard.
 
 TODO
 
+This package is not a standalone command line program:
+it deliberately publishes no `bin`.
+The wizard is distributed as a library and mounted by the
+[Seam CLI](https://github.com/seamapi/cli) under `seam wizard`.
+
 ## Installation
 
 Add this as a dependency to your project using [npm] with
@@ -18,6 +23,25 @@ $ npm install @seamapi/wizard
 ```
 
 [npm]: https://www.npmjs.com/
+
+## Usage
+
+Mount the entire wizard as a subcommand by forwarding the arguments
+that belong to the wizard to the default export:
+
+```ts
+import wizard from '@seamapi/wizard'
+
+// e.g., for `seam wizard --help`, argv is `['--help']`.
+await wizard({
+  argv: process.argv.slice(3),
+  commandName: 'seam wizard',
+})
+```
+
+The `commandName` option is only used in help output
+so that the wizard describes itself using the command
+that was actually run.
 
 ## Development and Testing
 
@@ -30,6 +54,17 @@ $ nvm install
 $ npm install
 $ npm run test:watch
 ```
+
+Run the wizard locally with
+
+```
+$ npm run wizard
+```
+
+This runs the development CLI in `src/bin/cli.ts`,
+which simply calls the wizard with the arguments given.
+That file exists for local development only:
+it is excluded from the build and from the published package.
 
 Primary development tasks are defined under `scripts` in `package.json`
 and available via `npm run`.

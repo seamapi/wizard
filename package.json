@@ -32,6 +32,7 @@
     "index.d.ts",
     "lib",
     "src",
+    "!src/bin",
     "!test",
     "!**/*.test.ts"
   ],
@@ -52,6 +53,8 @@
     "lint": "eslint .",
     "postlint": "prettier --check --ignore-path .gitignore .",
     "postversion": "git push --follow-tags",
+    "wizard": "tsx src/bin/cli.ts",
+    "inspect": "tsx --inspect src/bin/cli.ts",
     "example": "tsx examples",
     "example:inspect": "tsx --inspect examples",
     "format": "prettier --write --ignore-path .gitignore .",
@@ -72,7 +75,11 @@
       "version": "^11.0.0 || ^10.0.0"
     }
   },
+  "dependencies": {
+    "minimist": "^1.2.8"
+  },
   "devDependencies": {
+    "@types/minimist": "^1.2.5",
     "@types/node": "^24.10.9",
     "@vitest/coverage-v8": "^4.1.10",
     "del-cli": "^7.0.0",
