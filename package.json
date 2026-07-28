@@ -44,11 +44,11 @@
     "prebuild:ts": "del 'index.*' lib",
     "postbuild:ts": "tsc-alias --project tsconfig.build.json",
     "typecheck": "tsc",
-    "test": "c8 ava",
+    "test": "vitest run --coverage",
     "pretest": "tsx src/index.ts",
-    "test:update": "ava --update-snapshots",
-    "test:watch": "ava --watch",
-    "test:debug": "ava debug --break",
+    "test:update": "vitest run --update",
+    "test:watch": "vitest",
+    "test:debug": "vitest --inspect-brk --no-file-parallelism",
     "lint": "eslint .",
     "postlint": "prettier --check --ignore-path .gitignore .",
     "postversion": "git push --follow-tags",
@@ -56,7 +56,7 @@
     "example:inspect": "tsx --inspect examples",
     "format": "prettier --write --ignore-path .gitignore .",
     "preformat": "eslint --fix .",
-    "report": "c8 report"
+    "report": "vitest run --coverage"
   },
   "engines": {
     "node": ">=22.11.0",
@@ -74,8 +74,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.10.9",
-    "ava": "^8.0.1",
-    "c8": "^12.0.0",
+    "@vitest/coverage-v8": "^4.1.10",
     "del-cli": "^7.0.0",
     "eslint": "^9.31.0",
     "eslint-plugin-import": "^2.32.0",
@@ -87,6 +86,7 @@
     "prettier": "^3.0.0",
     "tsc-alias": "^1.8.2",
     "tsx": "^4.6.2",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
   }
 }

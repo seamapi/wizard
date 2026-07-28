@@ -1,7 +1,7 @@
-import test from 'ava'
+import { expect, test } from 'vitest'
 
 import { todo } from '@seamapi/wizard'
 
-test('todo: returns argument', (t) => {
-  t.is(todo('todo'), 'todo', 'returns input')
+test('todo: returns argument', () => {
+  expect(todo('todo')).toBe('todo')
 })
