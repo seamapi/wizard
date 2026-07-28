@@ -1,7 +1,7 @@
 {
-  "name": "@seamapi/makenew-tsmodule",
-  "version": "3.0.4",
-  "description": "Package skeleton for a TypeScript module.",
+  "name": "@seamapi/wizard",
+  "version": "0.0.0",
+  "description": "The AI powered Seam setup wizard.",
   "type": "module",
   "main": "index.js",
   "types": "index.d.ts",
@@ -18,9 +18,9 @@
   "keywords": [
     "node"
   ],
-  "homepage": "https://github.com/seamapi/makenew-tsmodule",
-  "bugs": "https://github.com/seamapi/makenew-tsmodule/issues",
-  "repository": "seamapi/makenew-tsmodule",
+  "homepage": "https://github.com/seamapi/wizard",
+  "bugs": "https://github.com/seamapi/wizard/issues",
+  "repository": "seamapi/wizard",
   "license": "MIT",
   "author": {
     "name": "Seam Labs, Inc.",
