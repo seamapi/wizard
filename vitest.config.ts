@@ -3,8 +3,7 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   resolve: {
     alias: {
-      '@seamapi/makenew-tsmodule': new URL('./src/index.ts', import.meta.url)
-        .pathname,
+      '@seamapi/wizard': new URL('./src/index.ts', import.meta.url).pathname,
       lib: new URL('./src/lib', import.meta.url).pathname,
     },
   },
@@ -12,6 +11,7 @@ export default defineConfig({
     coverage: {
       exclude: [
         '**/index.ts',
+        'src/bin/cli.ts',
         'package/**/*.ts',
         'examples/**/*.ts',
         '**/*.test.ts',
