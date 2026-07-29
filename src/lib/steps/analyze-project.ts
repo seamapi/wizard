@@ -2,11 +2,11 @@ import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import type { ProjectInfo, Sdk } from "./detect-project.js"
 import { ALL_BLOCKS, type BuildMode } from "./build-plan.js"
-import { findExistingApiKey } from "../util/env-file.js"
+import { findExistingApiKey } from "lib/util/env-file.js"
 import {
   callInferenceForText,
   type WizardOnboarding,
-} from "../util/seam-api.js"
+} from "lib/util/seam-api.js"
 
 // A cheap classification model — the deep work happens in the integration
 // agent, so the pre-analysis only needs a good recommendation, not deep

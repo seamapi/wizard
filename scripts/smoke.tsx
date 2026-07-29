@@ -5,7 +5,7 @@
 
 import React from "react"
 import { render } from "ink-testing-library"
-import { App } from "../src/app.js"
+import { App } from "lib/app.js"
 
 delete process.env.SEAM_API_KEY
 

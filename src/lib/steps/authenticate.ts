@@ -2,8 +2,8 @@ import { join } from "node:path"
 import {
   getWorkspaceForApiKey,
   type SeamWorkspace,
-} from "../util/seam-api.js"
-import { upsertEnvVar, findExistingApiKey } from "../util/env-file.js"
+} from "lib/util/seam-api.js"
+import { upsertEnvVar, findExistingApiKey } from "lib/util/env-file.js"
 
 export interface AuthResult {
   workspace: SeamWorkspace

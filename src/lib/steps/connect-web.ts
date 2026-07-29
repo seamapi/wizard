@@ -2,8 +2,8 @@ import { createServer, type ServerResponse } from "node:http"
 import { randomBytes } from "node:crypto"
 import { join } from "node:path"
 import open from "open"
-import { getWorkspaceForApiKey, type SeamWorkspace } from "../util/seam-api.js"
-import { upsertEnvVar } from "../util/env-file.js"
+import { getWorkspaceForApiKey, type SeamWorkspace } from "lib/util/seam-api.js"
+import { upsertEnvVar } from "lib/util/env-file.js"
 
 // The dashboard "wizard" page mints a key and posts it back to the local
 // callback. Override the console host with SEAM_CONSOLE_URL for dev.
