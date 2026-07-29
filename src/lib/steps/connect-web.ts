@@ -9,7 +9,7 @@ import { getWorkspaceForApiKey, type SeamWorkspace } from 'lib/util/seam-api.js'
 
 // The dashboard "wizard" page mints a key and posts it back to the local
 // callback. Override the console host with SEAM_CONSOLE_URL for dev.
-const CONSOLE_URL = process.env.SEAM_CONSOLE_URL ?? 'https://console.seam.co'
+const CONSOLE_URL = process.env['SEAM_CONSOLE_URL'] ?? 'https://console.seam.co'
 const CONSOLE_WIZARD_PATH = '/dashboard/wizard'
 const CALLBACK_TIMEOUT_MS = 5 * 60 * 1000
 
@@ -96,7 +96,7 @@ export async function connectViaWeb(
       }
       const url = `${CONSOLE_URL}${CONSOLE_WIZARD_PATH}?cli_connect=1&cli_port=${address.port}&cli_state=${state}`
       events.onUrl?.(url)
-      void open(url).catch(() => {
+      open(url).catch(() => {
         // Browser may not open (headless/SSH) — the UI shows the URL to visit.
       })
       events.onWaiting?.()

@@ -23,15 +23,15 @@ export function detectProject(cwd: string): ProjectInfo {
 
 // null when the project is ambiguous (both or neither) — the wizard then asks.
 function detectSdk(cwd: string): Sdk | null {
-  const is_javascript = existsSync(join(cwd, 'package.json'))
-  const is_python = [
+  const isJavascript = existsSync(join(cwd, 'package.json'))
+  const isPython = [
     'pyproject.toml',
     'requirements.txt',
     'setup.py',
     'Pipfile',
   ].some((marker) => existsSync(join(cwd, marker)))
-  if (is_javascript && !is_python) return 'javascript'
-  if (is_python && !is_javascript) return 'python'
+  if (isJavascript && !isPython) return 'javascript'
+  if (isPython && !isJavascript) return 'python'
   return null
 }
 

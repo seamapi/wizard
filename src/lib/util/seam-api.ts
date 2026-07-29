@@ -15,14 +15,14 @@ export class ApiKeyError extends Error {}
 // Validates the key by fetching the workspace it belongs to. Returns the
 // workspace so the wizard can show which workspace the key is for.
 export async function getWorkspaceForApiKey(
-  api_key: string,
+  apiKey: string,
 ): Promise<SeamWorkspace> {
   let response: Response
   try {
     response = await fetch(`${SEAM_API_BASE}/workspaces/get`, {
       method: 'POST',
       headers: {
-        authorization: `Bearer ${api_key}`,
+        authorization: `Bearer ${apiKey}`,
         'content-type': 'application/json',
       },
       body: '{}',
@@ -80,14 +80,14 @@ export interface WizardInferenceSession {
 // not the API key — is what the embedded agent sends to Seam-hosted inference,
 // so the long-lived key stays off the repeated inference path.
 export async function exchangeWizardInferenceToken(
-  api_key: string,
+  apiKey: string,
 ): Promise<WizardInferenceSession> {
   let response: Response
   try {
     response = await fetch(`${SEAM_INFERENCE_BASE_URL}/session`, {
       method: 'POST',
       headers: {
-        authorization: `Bearer ${api_key}`,
+        authorization: `Bearer ${apiKey}`,
         'content-type': 'application/json',
       },
       body: '{}',

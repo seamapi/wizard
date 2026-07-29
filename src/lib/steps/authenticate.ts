@@ -34,9 +34,9 @@ export async function findVerifiedExistingKey(
 // Verify a pasted key and save it to .env. Throws (ApiKeyError) if invalid.
 export async function verifyAndSaveKey(
   root: string,
-  api_key: string,
+  apiKey: string,
 ): Promise<AuthResult> {
-  const trimmed = api_key.trim()
+  const trimmed = apiKey.trim()
   const workspace = await getWorkspaceForApiKey(trimmed)
   upsertEnvVar(join(root, '.env'), 'SEAM_API_KEY', trimmed)
   return { workspace }

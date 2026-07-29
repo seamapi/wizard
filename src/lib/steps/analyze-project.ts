@@ -73,7 +73,7 @@ function gatherProjectSignals(
   root: string,
   project: ProjectInfo,
 ): ProjectSignals {
-  const package_json = readJsonIfExists(join(root, 'package.json')) as {
+  const packageJson = readJsonIfExists(join(root, 'package.json')) as {
     name?: string
     description?: string
     keywords?: string[]
@@ -81,30 +81,30 @@ function gatherProjectSignals(
     devDependencies?: Record<string, string>
   } | null
 
-  const dependency_names = [
-    ...Object.keys(package_json?.dependencies ?? {}),
-    ...Object.keys(package_json?.devDependencies ?? {}),
+  const dependencyNames = [
+    ...Object.keys(packageJson?.dependencies ?? {}),
+    ...Object.keys(packageJson?.devDependencies ?? {}),
   ]
 
   return {
     sdk: project.detected_sdk,
-    framework: detectFramework(root, project.detected_sdk, dependency_names),
-    package_name: package_json?.name ?? null,
-    description: package_json?.description ?? null,
-    keywords: package_json?.keywords ?? [],
-    dependency_names: dependency_names.slice(0, 40),
+    framework: detectFramework(root, project.detected_sdk, dependencyNames),
+    package_name: packageJson?.name ?? null,
+    description: packageJson?.description ?? null,
+    keywords: packageJson?.keywords ?? [],
+    dependency_names: dependencyNames.slice(0, 40),
     readme_excerpt: readReadmeExcerpt(root),
     seam_already_setup:
-      dependency_names.includes('seam') || findExistingApiKey(root) != null,
+      dependencyNames.includes('seam') || findExistingApiKey(root) != null,
   }
 }
 
 function detectFramework(
   root: string,
   sdk: Sdk | null,
-  dependency_names: string[],
+  dependencyNames: string[],
 ): string | null {
-  const has = (name: string): boolean => dependency_names.includes(name)
+  const has = (name: string): boolean => dependencyNames.includes(name)
 
   if (sdk === 'javascript') {
     if (has('next')) return 'Next.js'
@@ -169,7 +169,7 @@ async function recommendViaLlm(
   onboarding: WizardOnboarding | null,
   inference: { base_url: string; token: string },
 ): Promise<Recommendation> {
-  const block_menu = ALL_BLOCKS.map(
+  const blockMenu = ALL_BLOCKS.map(
     (block) => `  "${block.id}" — ${block.label}`,
   ).join('\n')
 
@@ -202,7 +202,7 @@ async function recommendViaLlm(
     '2) selections: building-block ids to scaffold — only for "full_api" (use',
     '   [] for customer_portal). Always include "access_grants" for full_api.',
     '   Valid ids:',
-    block_menu,
+    blockMenu,
     '3) app_type_guess: short phrase (e.g. "vacation rental", "coworking",',
     '   "property management", "unknown").',
     '4) rationale: one short sentence.',
@@ -293,7 +293,7 @@ function heuristicRecommendation(
     terms.some((term) => haystack.includes(term))
 
   const selections = new Set<string>(['access_grants', 'connect_device'])
-  let app_type_guess: string | null = null
+  let appTypeGuess: string | null = null
 
   if (
     mentions(
@@ -308,7 +308,7 @@ function heuristicRecommendation(
     )
   ) {
     selections.add('reservations')
-    app_type_guess = 'hospitality / short-term rental'
+    appTypeGuess = 'hospitality / short-term rental'
   } else if (
     mentions(
       'coworking',
@@ -320,13 +320,13 @@ function heuristicRecommendation(
     )
   ) {
     selections.add('user_identities')
-    app_type_guess = 'property / coworking'
+    appTypeGuess = 'property / coworking'
   }
 
   return {
     mode: 'full_api',
     selections: [...selections],
-    app_type_guess,
+    app_type_guess: appTypeGuess,
     rationale: 'Recommended from your project and onboarding answers.',
     source: 'heuristic',
   }

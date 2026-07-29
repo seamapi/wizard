@@ -32,7 +32,7 @@ export const CLAUDE_CODE_COMMANDS = [
 
 // Detect Claude Code so we print its slash commands instead of running npx.
 export function detectPluginTarget(root: string): PluginTarget {
-  const has_claude_code =
+  const hasClaudeCode =
     existsSync(join(root, '.claude')) || existsSync(join(root, 'CLAUDE.md'))
-  return has_claude_code ? 'claude-code' : 'universal'
+  return hasClaudeCode ? 'claude-code' : 'universal'
 }

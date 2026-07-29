@@ -1,5 +1,5 @@
 import { Box, Text, useInput } from 'ink'
-import React, { useState } from 'react'
+import { Fragment, type ReactElement, useState } from 'react'
 
 export interface CheckboxItem {
   id: string
@@ -12,16 +12,16 @@ export interface CheckboxItem {
 // one over useInput. Only mounted during the checklist phase.
 export function CheckboxList({
   items,
-  initial_selected,
+  initial_selected: initialSelected,
   onSubmit,
 }: {
   items: CheckboxItem[]
   initial_selected: string[]
   onSubmit: (selected: string[]) => void
-}): React.ReactElement {
+}): ReactElement {
   const [cursor, setCursor] = useState(0)
   const [selected, setSelected] = useState<Set<string>>(
-    () => new Set(initial_selected),
+    () => new Set(initialSelected),
   )
 
   useInput((input, key) => {
@@ -48,19 +48,22 @@ export function CheckboxList({
   return (
     <Box flexDirection='column'>
       {items.map((item, index) => {
-        const is_cursor = index === cursor
-        const is_checked = selected.has(item.id)
-        const show_group =
+        const isCursor = index === cursor
+        const isChecked = selected.has(item.id)
+        const showGroup =
           item.group != null && item.group !== items[index - 1]?.group
         return (
-          <React.Fragment key={item.id}>
-            {show_group && <Text color='gray'>{`  ${item.group ?? ''}`}</Text>}
-            <Text color={is_cursor ? 'cyan' : undefined}>
-              {is_cursor ? '❯ ' : '  '}
-              {is_checked ? '◉ ' : '◯ '}
+          <Fragment key={item.id}>
+            {showGroup && <Text color='gray'>{`  ${item.group ?? ''}`}</Text>}
+            {/* Non-cursor rows omit `color` entirely (rather than passing
+                undefined, which exactOptionalPropertyTypes rejects) so they
+                inherit the terminal's default color. */}
+            <Text {...(isCursor ? { color: 'cyan' } : {})}>
+              {isCursor ? '❯ ' : '  '}
+              {isChecked ? '◉ ' : '◯ '}
               {item.label}
             </Text>
-          </React.Fragment>
+          </Fragment>
         )
       })}
       <Text color='gray'>{'  ↑/↓ move · space toggle · enter confirm'}</Text>

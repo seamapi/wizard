@@ -2,7 +2,13 @@ import { Box, Text, useApp, useStdout } from 'ink'
 import SelectInput from 'ink-select-input'
 import Spinner from 'ink-spinner'
 import TextInput from 'ink-text-input'
-import React, { useEffect, useRef, useState } from 'react'
+import {
+  type ReactElement,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
 
 import { CheckboxList } from './components/checkbox-list.js'
 import {
@@ -77,11 +83,11 @@ export function App({
 }: {
   root: string
   onExit?: (lines: string[]) => void
-}): React.ReactElement {
+}): ReactElement {
   const { exit } = useApp()
   const { stdout } = useStdout()
-  const project_ref = useRef<ProjectInfo>(detectProject(root))
-  const attempt_ref = useRef(0)
+  const projectRef = useRef<ProjectInfo>(detectProject(root))
+  const attemptRef = useRef(0)
 
   const [dimensions, setDimensions] = useState({
     rows: stdout?.rows ?? 24,
@@ -100,11 +106,11 @@ export function App({
     url: null,
     received: false,
   })
-  const [paste_value, setPasteValue] = useState('')
-  const [paste_error, setPasteError] = useState<string | null>(null)
-  const [install_lines, setInstallLines] = useState<string[]>([])
-  const [note_value, setNoteValue] = useState('')
-  const [agent_lines, setAgentLines] = useState<string[]>([])
+  const [pasteValue, setPasteValue] = useState('')
+  const [pasteError, setPasteError] = useState<string | null>(null)
+  const [installLines, setInstallLines] = useState<string[]>([])
+  const [noteValue, setNoteValue] = useState('')
+  const [agentLines, setAgentLines] = useState<string[]>([])
   const [session, setSession] = useState<WizardInferenceSession | null>(null)
   const [analysis, setAnalysis] = useState<ProjectAnalysis | null>(null)
   const [mode, setMode] = useState<BuildMode | null>(null)
@@ -112,15 +118,15 @@ export function App({
 
   // The plan record (written to .seam/onboarding.json before the agent runs);
   // the done handler rewrites it with the run result.
-  const plan_ref = useRef<Omit<OnboardingRecord, 'schema_version'> | null>(null)
+  const planRef = useRef<Omit<OnboardingRecord, 'schema_version'> | null>(null)
 
   // Kept in sync with `messages` so the exit handler can hand the full
   // transcript to index.tsx to reprint after leaving the alt screen.
-  const messages_ref = useRef<Msg[]>([])
+  const messagesRef = useRef<Msg[]>([])
   const addMessage = (message: Msg): void =>
     setMessages((previous) => {
       const next = [...previous, message]
-      messages_ref.current = next
+      messagesRef.current = next
       return next
     })
 
@@ -131,21 +137,21 @@ export function App({
 
   // Compose the goal from the chosen mode + building blocks + optional note,
   // persist the plan to .seam/onboarding.json, then hand off to the agent.
-  const startIntegration = (note_input: string): void => {
-    const note = note_input.trim().length > 0 ? note_input.trim() : null
-    const effective_mode: BuildMode = mode ?? 'full_api'
-    const effective_selections =
-      effective_mode === 'customer_portal' ? [] : selections
+  const startIntegration = (noteInput: string): void => {
+    const note = noteInput.trim().length > 0 ? noteInput.trim() : null
+    const effectiveMode: BuildMode = mode ?? 'full_api'
+    const effectiveSelections =
+      effectiveMode === 'customer_portal' ? [] : selections
     const goal = composeGoal({
-      mode: effective_mode,
-      selections: effective_selections,
+      mode: effectiveMode,
+      selections: effectiveSelections,
       note,
       framework: analysis?.signals.framework ?? null,
     })
     const record: Omit<OnboardingRecord, 'schema_version'> = {
       created_at: new Date().toISOString(),
-      mode: effective_mode,
-      selections: effective_selections,
+      mode: effectiveMode,
+      selections: effectiveSelections,
       note,
       goal,
       analysis: {
@@ -157,7 +163,7 @@ export function App({
         recommendation_source: analysis?.recommendation.source ?? 'heuristic',
       },
     }
-    plan_ref.current = record
+    planRef.current = record
     try {
       writeOnboardingRecord(root, record)
       addMessage({
@@ -183,10 +189,10 @@ export function App({
       ])
     } else {
       setAgentLines([])
-      if (plan_ref.current != null) {
+      if (planRef.current != null) {
         try {
           writeOnboardingRecord(root, {
-            ...plan_ref.current,
+            ...planRef.current,
             result: {
               ok: event.ok,
               files_summary: event.summary.trim().slice(0, 4000),
@@ -209,8 +215,9 @@ export function App({
             },
       )
       for (const line of event.summary.trim().split('\n').slice(0, 15)) {
-        if (line.trim().length > 0)
+        if (line.trim().length > 0) {
           addMessage({ tone: 'plain', text: `  ${line}` })
+        }
       }
       if (event.cost_usd != null) {
         addMessage({
@@ -223,7 +230,7 @@ export function App({
 
   // Once a workspace is known, choose SDK (or skip if detected) then install.
   const advanceAfterAuth = (): void => {
-    const detected = project_ref.current.detected_sdk
+    const detected = projectRef.current.detected_sdk
     if (detected != null) {
       setSdk(detected)
       addMessage({ tone: 'info', text: `Detected ${detected} project` })
@@ -237,7 +244,7 @@ export function App({
   useEffect(() => {
     if (phase.t !== 'init') return
     let cancelled = false
-    void (async () => {
+    const run = async (): Promise<void> => {
       const existing = await findVerifiedExistingKey(root)
       if (cancelled) return
       if (existing != null) {
@@ -250,7 +257,17 @@ export function App({
       } else {
         setPhase({ t: 'method' })
       }
-    })()
+    }
+    run().catch((error: unknown) => {
+      if (cancelled) return
+      setPhase({
+        t: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'The wizard hit an unexpected error.',
+      })
+    })
     return () => {
       cancelled = true
     }
@@ -260,7 +277,7 @@ export function App({
   useEffect(() => {
     if (phase.t !== 'browser') return
     let cancelled = false
-    void (async () => {
+    const run = async (): Promise<void> => {
       try {
         const result = await connectViaWeb(root, {
           onUrl: (url) => !cancelled && setBrowser((b) => ({ ...b, url })),
@@ -285,7 +302,17 @@ export function App({
           })
         }
       }
-    })()
+    }
+    run().catch((error: unknown) => {
+      if (cancelled) return
+      setPhase({
+        t: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'The wizard hit an unexpected error.',
+      })
+    })
     return () => {
       cancelled = true
     }
@@ -294,11 +321,11 @@ export function App({
   // verify a pasted key
   useEffect(() => {
     if (phase.t !== 'verify-paste') return
-    const { api_key } = phase
+    const { api_key: apiKey } = phase
     let cancelled = false
-    void (async () => {
+    const run = async (): Promise<void> => {
       try {
-        const result = await verifyAndSaveKey(root, api_key)
+        const result = await verifyAndSaveKey(root, apiKey)
         if (cancelled) return
         setWorkspace(result.workspace)
         addMessage({ tone: 'ok', text: `Workspace: ${result.workspace.name}` })
@@ -309,7 +336,7 @@ export function App({
           error instanceof ApiKeyError
             ? error.message
             : "Couldn't verify the key."
-        if (attempt_ref.current >= MAX_ATTEMPTS) {
+        if (attemptRef.current >= MAX_ATTEMPTS) {
           setPhase({
             t: 'error',
             message: 'Too many attempts. Re-run with a valid key.',
@@ -320,7 +347,17 @@ export function App({
           setPhase({ t: 'paste' })
         }
       }
-    })()
+    }
+    run().catch((error: unknown) => {
+      if (cancelled) return
+      setPhase({
+        t: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'The wizard hit an unexpected error.',
+      })
+    })
     return () => {
       cancelled = true
     }
@@ -330,12 +367,13 @@ export function App({
   useEffect(() => {
     if (phase.t !== 'install-sdk' || sdk == null) return
     let cancelled = false
-    const command = installSeamSdkCommand(sdk, project_ref.current)
-    void (async () => {
+    const command = installSeamSdkCommand(sdk, projectRef.current)
+    const run = async (): Promise<void> => {
       try {
         await runInstall(command, root, (line) => {
-          if (!cancelled)
+          if (!cancelled) {
             setInstallLines((previous) => [...previous.slice(-3), line])
+          }
         })
         if (!cancelled) addMessage({ tone: 'ok', text: 'Seam SDK installed' })
       } catch {
@@ -350,7 +388,17 @@ export function App({
         setInstallLines([])
         setPhase({ t: 'install-plugin' })
       }
-    })()
+    }
+    run().catch((error: unknown) => {
+      if (cancelled) return
+      setPhase({
+        t: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'The wizard hit an unexpected error.',
+      })
+    })
     return () => {
       cancelled = true
     }
@@ -361,18 +409,19 @@ export function App({
   // point at the native /plugin path, which also wires up the seam-docs MCP.
   useEffect(() => {
     if (phase.t !== 'install-plugin') return
-    const workspace_name = workspace?.name ?? 'your workspace'
     const target = detectPluginTarget(root)
 
     let cancelled = false
-    void (async () => {
+    const run = async (): Promise<void> => {
       try {
         await runInstall(SEAM_PLUGIN_NPX_COMMAND, root, (line) => {
-          if (!cancelled)
+          if (!cancelled) {
             setInstallLines((previous) => [...previous.slice(-3), line])
+          }
         })
-        if (!cancelled)
+        if (!cancelled) {
           addMessage({ tone: 'ok', text: 'Installed the Seam plugin skills' })
+        }
       } catch {
         if (!cancelled) {
           addMessage({
@@ -393,7 +442,17 @@ export function App({
         }
         setPhase({ t: 'offer-integrate' })
       }
-    })()
+    }
+    run().catch((error: unknown) => {
+      if (cancelled) return
+      setPhase({
+        t: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'The wizard hit an unexpected error.',
+      })
+    })
     return () => {
       cancelled = true
     }
@@ -406,7 +465,7 @@ export function App({
   useEffect(() => {
     if (phase.t !== 'analyze') return
     let cancelled = false
-    void (async () => {
+    const run = async (): Promise<void> => {
       const found = findExistingApiKey(root)
       if (found == null) {
         addMessage({
@@ -417,9 +476,9 @@ export function App({
         return
       }
 
-      let current_session: WizardInferenceSession
+      let currentSession: WizardInferenceSession
       try {
-        current_session = await exchangeWizardInferenceToken(found.api_key)
+        currentSession = await exchangeWizardInferenceToken(found.api_key)
       } catch (error) {
         if (!cancelled) {
           addMessage({
@@ -433,15 +492,15 @@ export function App({
         return
       }
       if (cancelled) return
-      setSession(current_session)
+      setSession(currentSession)
 
       const result = await analyzeProject({
         root,
-        project: project_ref.current,
-        onboarding: current_session.onboarding,
+        project: projectRef.current,
+        onboarding: currentSession.onboarding,
         inference: {
           base_url: SEAM_INFERENCE_BASE_URL,
-          token: current_session.token,
+          token: currentSession.token,
         },
       })
       if (cancelled) return
@@ -459,14 +518,24 @@ export function App({
         tone: 'info',
         text: `Analyzed your project${detail.length > 0 ? `: ${detail}` : ''}`,
       })
-      if (current_session.onboarding != null) {
+      if (currentSession.onboarding != null) {
         addMessage({
           tone: 'plain',
           text: '  Used your Console onboarding answers',
         })
       }
       setPhase({ t: 'integrate-mode' })
-    })()
+    }
+    run().catch((error: unknown) => {
+      if (cancelled) return
+      setPhase({
+        t: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'The wizard hit an unexpected error.',
+      })
+    })
     return () => {
       cancelled = true
     }
@@ -479,7 +548,7 @@ export function App({
     if (phase.t !== 'integrate') return
     const { goal } = phase
     const controller = new AbortController()
-    void (async () => {
+    const run = async (): Promise<void> => {
       if (session == null) {
         addMessage({
           tone: 'warn',
@@ -517,7 +586,17 @@ export function App({
         }
       }
       if (!controller.signal.aborted) finishWithNextSteps()
-    })()
+    }
+    run().catch((error: unknown) => {
+      if (controller.signal.aborted) return
+      setPhase({
+        t: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'The wizard hit an unexpected error.',
+      })
+    })
     return () => controller.abort()
   }, [phase.t])
 
@@ -541,9 +620,9 @@ export function App({
     }
     // Hand the transcript back so index.tsx can reprint it once the alt screen
     // is torn down (its contents are otherwise discarded). Small delay lets the
-    // final addMessage above flush into messages_ref.
+    // final addMessage above flush into messagesRef.
     const id = setTimeout(() => {
-      onExit?.(messages_ref.current.map(formatMessageLine))
+      onExit?.(messagesRef.current.map(formatMessageLine))
       exit()
     }, 40)
     return () => clearTimeout(id)
@@ -552,8 +631,8 @@ export function App({
   // Full-screen: a header, the transcript (bounded to what fits), then the
   // active step. The outer box is sized to the terminal so it fills the alt
   // screen; older transcript lines scroll off the top and are reprinted on exit.
-  const transcript_capacity = Math.max(1, dimensions.rows - 8)
-  const visible_messages = messages.slice(-transcript_capacity)
+  const transcriptCapacity = Math.max(1, dimensions.rows - 8)
+  const visibleMessages = messages.slice(-transcriptCapacity)
 
   return (
     <Box
@@ -564,7 +643,7 @@ export function App({
     >
       <Header />
       <Box flexDirection='column' flexGrow={1}>
-        {visible_messages.map((message, index) => (
+        {visibleMessages.map((message, index) => (
           <MessageLine key={index} message={message} />
         ))}
       </Box>
@@ -572,7 +651,7 @@ export function App({
     </Box>
   )
 
-  function renderActive(): React.ReactElement | null {
+  function renderActive(): ReactElement | null {
     switch (phase.t) {
       case 'init':
         return <Pending label='Checking for an existing key…' />
@@ -593,7 +672,7 @@ export function App({
               ]}
               onSelect={(item) => {
                 if (item.value === 'paste') {
-                  attempt_ref.current = 0
+                  attemptRef.current = 0
                   setPhase({ t: 'paste' })
                 } else {
                   setPhase({ t: 'browser' })
@@ -621,7 +700,7 @@ export function App({
             <Box>
               <Text color='cyan'>{'› '}</Text>
               <TextInput
-                value={paste_value}
+                value={pasteValue}
                 onChange={setPasteValue}
                 mask='*'
                 placeholder='seam_…'
@@ -633,12 +712,12 @@ export function App({
                     return
                   }
                   setPasteError(null)
-                  attempt_ref.current += 1
+                  attemptRef.current += 1
                   setPhase({ t: 'verify-paste', api_key: value })
                 }}
               />
             </Box>
-            {paste_error != null && <Text color='red'> {paste_error}</Text>}
+            {pasteError != null && <Text color='red'> {pasteError}</Text>}
           </Prompt>
         )
       case 'verify-paste':
@@ -665,7 +744,7 @@ export function App({
         return (
           <Box flexDirection='column'>
             <Pending label='Installing the Seam SDK…' />
-            {install_lines.map((line, index) => (
+            {installLines.map((line, index) => (
               <Text key={index} color='gray'>
                 {' '}
                 {line}
@@ -677,7 +756,7 @@ export function App({
         return (
           <Box flexDirection='column'>
             <Pending label='Installing the Seam plugin…' />
-            {install_lines.map((line, index) => (
+            {installLines.map((line, index) => (
               <Text key={index} color='gray'>
                 {' '}
                 {line}
@@ -707,18 +786,18 @@ export function App({
         return <Pending label='Analyzing your project…' />
       case 'integrate-mode': {
         const recommended: BuildMode = mode ?? 'full_api'
-        const portal_item = {
+        const portalItem = {
           label: 'Customer Portal — Seam hosts the UI (you call ~2 endpoints)',
           value: 'customer_portal',
         }
-        const api_item = {
+        const apiItem = {
           label: 'Full API control — you build the UI, wire up the API',
           value: 'full_api',
         }
         const items =
           recommended === 'customer_portal'
-            ? [portal_item, api_item]
-            : [api_item, portal_item]
+            ? [portalItem, apiItem]
+            : [apiItem, portalItem]
         return (
           <Prompt title='How do you want to integrate Seam?'>
             {analysis?.recommendation.rationale != null &&
@@ -774,7 +853,7 @@ export function App({
             <Box>
               <Text color='cyan'>{'› '}</Text>
               <TextInput
-                value={note_value}
+                value={noteValue}
                 onChange={setNoteValue}
                 placeholder='e.g. wire it into the checkout page'
                 onSubmit={(value) => startIntegration(value)}
@@ -786,7 +865,7 @@ export function App({
         return (
           <Box flexDirection='column'>
             <Pending label='Writing your Seam integration…' />
-            {agent_lines.map((line, index) => (
+            {agentLines.map((line, index) => (
               <Text key={index} color='gray'>
                 {' '}
                 {line}
@@ -804,27 +883,27 @@ export function App({
 function pushNextSteps(
   addMessage: (message: Msg) => void,
   sdk: Sdk | null,
-  workspace_name: string,
+  workspaceName: string,
 ): void {
-  const env_hint =
+  const envHint =
     sdk === 'python'
       ? "Make sure SEAM_API_KEY is exported (it's in .env)."
       : 'Add .env to .gitignore — it holds your API key.'
   addMessage({ tone: 'plain', text: '' })
-  addMessage({ tone: 'ok', text: `You're set up in ${workspace_name}` })
+  addMessage({ tone: 'ok', text: `You're set up in ${workspaceName}` })
   addMessage({ tone: 'plain', text: 'Next steps:' })
   addMessage({
     tone: 'plain',
     text: '  1. Describe your integration to your AI assistant — e.g. "add Seam access grants". The Seam skill will guide it.',
   })
-  addMessage({ tone: 'plain', text: `  2. ${env_hint}` })
+  addMessage({ tone: 'plain', text: `  2. ${envHint}` })
   addMessage({ tone: 'plain', text: '  3. Docs: https://docs.seam.co' })
 }
 
-function truncate(text: string, max_length: number): string {
+function truncate(text: string, maxLength: number): string {
   const collapsed = text.replace(/\s+/g, ' ').trim()
-  return collapsed.length > max_length
-    ? `${collapsed.slice(0, max_length - 1)}…`
+  return collapsed.length > maxLength
+    ? `${collapsed.slice(0, maxLength - 1)}…`
     : collapsed
 }
 
@@ -847,7 +926,7 @@ function formatTool(name: string, detail: string): string {
   return detail.length > 0 ? `${verb} ${truncate(detail, 60)}` : verb
 }
 
-function Header(): React.ReactElement {
+function Header(): ReactElement {
   return (
     <Box marginBottom={1}>
       <Text backgroundColor='cyan' color='black' bold>
@@ -866,7 +945,7 @@ function formatMessageLine(message: Msg): string {
   return `${symbol} ${message.text}`
 }
 
-function MessageLine({ message }: { message: Msg }): React.ReactElement {
+function MessageLine({ message }: { message: Msg }): ReactElement {
   if (message.tone === 'plain') return <Text>{message.text}</Text>
   const symbol =
     message.tone === 'ok' ? '✔' : message.tone === 'warn' ? '▲' : '•'
@@ -883,7 +962,7 @@ function MessageLine({ message }: { message: Msg }): React.ReactElement {
   )
 }
 
-function Pending({ label }: { label: string }): React.ReactElement {
+function Pending({ label }: { label: string }): ReactElement {
   return (
     <Text>
       <Text color='cyan'>
@@ -899,8 +978,8 @@ function Prompt({
   children,
 }: {
   title: string
-  children: React.ReactNode
-}): React.ReactElement {
+  children: ReactNode
+}): ReactElement {
   return (
     <Box flexDirection='column' marginTop={1}>
       <Text bold>{title}</Text>

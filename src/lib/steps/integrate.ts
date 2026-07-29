@@ -44,7 +44,7 @@ export async function runIntegration(args: RunIntegrationArgs): Promise<void> {
   const {
     root,
     sdk,
-    workspace_name,
+    workspace_name: workspaceName,
     goal,
     inference,
     framework,
@@ -52,9 +52,9 @@ export async function runIntegration(args: RunIntegrationArgs): Promise<void> {
     signal,
     onEvent,
   } = args
-  const abort_controller = new AbortController()
-  const forward_abort = (): void => abort_controller.abort()
-  signal.addEventListener('abort', forward_abort, { once: true })
+  const abortController = new AbortController()
+  const forwardAbort = (): void => abortController.abort()
+  signal.addEventListener('abort', forwardAbort, { once: true })
 
   try {
     for await (const message of query({
@@ -89,10 +89,10 @@ export async function runIntegration(args: RunIntegrationArgs): Promise<void> {
         systemPrompt: {
           type: 'preset',
           preset: 'claude_code',
-          append: buildSystemAppend(sdk, workspace_name, framework, mode),
+          append: buildSystemAppend(sdk, workspaceName, framework, mode),
         },
         maxTurns: 40,
-        abortController: abort_controller,
+        abortController,
       },
     })) {
       if (signal.aborted) break
@@ -124,28 +124,28 @@ export async function runIntegration(args: RunIntegrationArgs): Promise<void> {
       }
     }
   } finally {
-    signal.removeEventListener('abort', forward_abort)
+    signal.removeEventListener('abort', forwardAbort)
   }
 }
 
 function buildSystemAppend(
   sdk: Sdk,
-  workspace_name: string,
+  workspaceName: string,
   framework?: string | null,
   mode?: 'full_api' | 'customer_portal',
 ): string {
   const language = sdk === 'python' ? 'Python' : 'JavaScript/TypeScript'
-  const framework_label = framework ?? "this project's framework"
-  const mode_label = mode === 'customer_portal' ? 'Customer Portal' : 'full-API'
+  const frameworkLabel = framework ?? "this project's framework"
+  const modeLabel = mode === 'customer_portal' ? 'Customer Portal' : 'full-API'
   return [
     `You are the Seam integration agent, embedded in the seam-wizard CLI.`,
-    `The developer has just connected their Seam account (workspace "${workspace_name}"),`,
+    `The developer has just connected their Seam account (workspace "${workspaceName}"),`,
     `and their SEAM_API_KEY is already saved in a local .env file. This is a ${language} project.`,
     ``,
     `Before writing any code:`,
     `- Fetch the reference integration: call mcp__seam-docs__list_example_apps, then`,
-    `  mcp__seam-docs__get_example_app to pull the example matching ${framework_label} and the`,
-    `  ${mode_label} approach. Model your integration on it — match its structure and Seam API`,
+    `  mcp__seam-docs__get_example_app to pull the example matching ${frameworkLabel} and the`,
+    `  ${modeLabel} approach. Model your integration on it — match its structure and Seam API`,
     `  usage — but ADAPT it to this project's actual framework version, conventions, and file`,
     `  layout. Do not copy it verbatim, and don't add files this project doesn't need.`,
     `- Find and read the installed Seam skill. Glob for a directory named like "*seam*" under`,
@@ -173,9 +173,9 @@ function buildAgentEnv(inference: {
   for (const [key, value] of Object.entries(process.env)) {
     if (value != null) env[key] = value
   }
-  delete env.ANTHROPIC_API_KEY
-  env.ANTHROPIC_BASE_URL = inference.base_url
-  env.ANTHROPIC_AUTH_TOKEN = inference.token
+  delete env['ANTHROPIC_API_KEY']
+  env['ANTHROPIC_BASE_URL'] = inference.base_url
+  env['ANTHROPIC_AUTH_TOKEN'] = inference.token
   return env
 }
 
@@ -192,8 +192,9 @@ function describeToolInput(input: unknown): string {
 }
 
 function stringField(input: unknown, key: string): string | null {
-  if (typeof input !== 'object' || input === null || !(key in input))
+  if (typeof input !== 'object' || input === null || !(key in input)) {
     return null
+  }
   const value = (input as Record<string, unknown>)[key]
   return typeof value === 'string' ? value : null
 }

@@ -86,7 +86,7 @@ export function composeGoal(args: {
 }): string {
   const { mode, selections, note, framework } = args
   const target = framework ?? 'the project'
-  const note_suffix =
+  const noteSuffix =
     note != null && note.trim().length > 0
       ? ` Additional context from the developer: ${note.trim()}`
       : ''
@@ -99,7 +99,7 @@ export function composeGoal(args: {
       'magic link), and regenerate the portal per visit since the session is ' +
       `short-lived. Wire it into ${target}'s conventions, load SEAM_API_KEY from ` +
       'the existing .env, and add a short runnable example.' +
-      note_suffix
+      noteSuffix
     )
   }
 
@@ -114,7 +114,7 @@ export function composeGoal(args: {
     `Implement the following, wired into ${target}'s conventions:\n${hints}\n` +
     'Load SEAM_API_KEY from the existing .env, keep changes minimal and ' +
     'idiomatic, and add a short runnable example.' +
-    note_suffix
+    noteSuffix
   )
 }
 
