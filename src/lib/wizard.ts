@@ -1,5 +1,7 @@
 import parseArgs from 'minimist'
 
+import { renderApp } from './render.js'
+
 export interface WizardOptions {
   /**
    * Command line arguments for the wizard, e.g., `process.argv.slice(2)`.
@@ -17,6 +19,15 @@ export interface WizardOptions {
    * The Seam CLI mounts this wizard and passes `seam wizard`.
    */
   commandName?: string
+
+  /**
+   * The project root the wizard sets up.
+   *
+   * Defaults to `process.cwd()`, which is the project the developer ran the
+   * command in. The wizard reads and writes files here, e.g., `.env` and
+   * `.seam/onboarding.json`.
+   */
+  cwd?: string
 }
 
 /**
@@ -24,9 +35,13 @@ export interface WizardOptions {
  *
  * This is the entrypoint used by the Seam CLI to mount the entire wizard
  * as a subcommand. It is also used by the development CLI in `src/bin/cli.ts`.
+ *
+ * Resolves once the wizard has finished, having taken over the terminal for
+ * the duration of the run. Rejects only if the wizard could not be run at
+ * all: a step that fails reports itself to the user and does not reject.
  */
 const wizard = async (options: WizardOptions = {}): Promise<void> => {
-  const { argv = [], commandName = 'wizard' } = options
+  const { argv = [], commandName = 'wizard', cwd = process.cwd() } = options
 
   const args = parseArgs([...argv], {
     boolean: ['help'],
@@ -38,16 +53,7 @@ const wizard = async (options: WizardOptions = {}): Promise<void> => {
     return
   }
 
-  // TODO: Implement the wizard.
-  await Promise.resolve()
-
-  write(
-    [
-      `The ${commandName} is not implemented yet.`,
-      `Run '${commandName} --help' for usage.`,
-      ...(args._.length > 0 ? [`Received arguments: ${args._.join(' ')}`] : []),
-    ].join('\n'),
-  )
+  await renderApp({ root: cwd })
 }
 
 export default wizard
@@ -57,6 +63,9 @@ const usage = (commandName: string): string =>
     'Seam Wizard',
     '',
     '  The AI powered Seam setup wizard.',
+    '',
+    '  Connects your Seam account, installs the Seam SDK and the Seam plugin',
+    '  skills, and optionally writes a Seam integration into your project.',
     '',
     'Usage',
     '',
@@ -70,6 +79,5 @@ const usage = (commandName: string): string =>
 
 // TODO: Replace this with a logger wrapper.
 const write = (message: string): void => {
-  // eslint-disable-next-line no-console
-  console.log(message)
+  process.stdout.write(`${message}\n`)
 }

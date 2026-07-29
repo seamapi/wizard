@@ -1,16 +1,23 @@
-import { expect, test, vi } from 'vitest'
+import { beforeEach, expect, test, vi } from 'vitest'
 
+import { renderApp } from './render.js'
 import wizard from './wizard.js'
+
+vi.mock('./render.js', () => ({ renderApp: vi.fn() }))
+
+beforeEach(() => {
+  vi.mocked(renderApp).mockClear()
+})
 
 const captureOutput = async (
   options: Parameters<typeof wizard>[0],
 ): Promise<string> => {
-  const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+  const write = vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
   try {
     await wizard(options)
-    return log.mock.calls.map(([message]) => String(message)).join('\n')
+    return write.mock.calls.map(([chunk]) => String(chunk)).join('')
   } finally {
-    log.mockRestore()
+    write.mockRestore()
   }
 }
 
@@ -33,12 +40,17 @@ test('wizard: uses the given command name in usage', async () => {
   expect(output).toContain('$ seam wizard [options]')
 })
 
-test('wizard: runs with no arguments', async () => {
-  const output = await captureOutput({})
-  expect(output).toContain('not implemented yet')
+test('wizard: does not run the app when displaying usage', async () => {
+  await captureOutput({ argv: ['--help'] })
+  expect(renderApp).not.toHaveBeenCalled()
 })
 
-test('wizard: reports forwarded arguments', async () => {
-  const output = await captureOutput({ argv: ['setup', 'devices'] })
-  expect(output).toContain('setup devices')
+test('wizard: runs the app in the working directory by default', async () => {
+  await wizard()
+  expect(renderApp).toHaveBeenCalledWith({ root: process.cwd() })
+})
+
+test('wizard: runs the app in the given directory', async () => {
+  await wizard({ argv: [], cwd: '/tmp/example-project' })
+  expect(renderApp).toHaveBeenCalledWith({ root: '/tmp/example-project' })
 })

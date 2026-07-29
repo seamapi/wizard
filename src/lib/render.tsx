@@ -1,36 +1,49 @@
-#!/usr/bin/env node
-import React from "react"
-import { render } from "ink"
-import { App } from "./app.js"
+import { render } from 'ink'
+
+import { App } from './app.js'
 
 const ESC = String.fromCharCode(27)
 // Enter alt screen + clear + home / leave alt screen (restores normal buffer).
 const ENTER_ALT_SCREEN = `${ESC}[?1049h${ESC}[2J${ESC}[H`
 const LEAVE_ALT_SCREEN = `${ESC}[?1049l`
 
-const is_tty = Boolean(process.stdout.isTTY)
+export interface RenderAppOptions {
+  /** The project root the wizard sets up. */
+  root: string
+}
 
-// Run full-screen in the alternate screen buffer (like less/vim). Enter before
-// the first render to avoid a flash of the initial frame in the normal buffer;
-// leave on exit and reprint the transcript, since the alternate buffer is
-// discarded when we leave it.
-if (is_tty) process.stdout.write(ENTER_ALT_SCREEN)
+/**
+ * Render the wizard full-screen and resolve once the user has finished.
+ *
+ * The app runs in the alternate screen buffer (like less or vim). Entering it
+ * before the first render avoids a flash of the initial frame in the normal
+ * buffer. The alternate buffer is discarded on the way out, so the transcript
+ * the app hands back is reprinted afterwards, leaving the usual record of the
+ * run behind in the terminal's scrollback.
+ *
+ * Rejects if the app fails to run, leaving the terminal restored either way.
+ */
+export const renderApp = async ({ root }: RenderAppOptions): Promise<void> => {
+  const isTty = Boolean(process.stdout.isTTY)
+  if (isTty) process.stdout.write(ENTER_ALT_SCREEN)
 
-let transcript: string[] = []
+  let transcript: readonly string[] = []
 
-const app = render(
-  <App root={process.cwd()} onExit={(lines) => (transcript = lines)} />
-)
+  const app = render(
+    <App
+      root={root}
+      onExit={(lines) => {
+        transcript = lines
+      }}
+    />,
+  )
 
-app
-  .waitUntilExit()
-  .then(() => {
-    if (is_tty) process.stdout.write(LEAVE_ALT_SCREEN)
+  try {
+    await app.waitUntilExit()
+  } finally {
+    if (isTty) process.stdout.write(LEAVE_ALT_SCREEN)
     if (transcript.length > 0) {
-      process.stdout.write(`\n${transcript.join("\n")}\n`)
+      process.stdout.write(`\n${transcript.join('\n')}\n`)
     }
-  })
-  .catch(() => {
-    if (is_tty) process.stdout.write(LEAVE_ALT_SCREEN)
-    process.exitCode = 1
-  })
+  }
+}
