@@ -1,6 +1,7 @@
 import parseArgs from 'minimist'
 
 import { renderApp } from './render.js'
+import seamapiWizardVersion from './version.js'
 
 export interface WizardOptions {
   /**
@@ -44,12 +45,17 @@ const wizard = async (options: WizardOptions = {}): Promise<void> => {
   const { argv = [], commandName = 'wizard', cwd = process.cwd() } = options
 
   const args = parseArgs([...argv], {
-    boolean: ['help'],
-    alias: { h: 'help' },
+    boolean: ['help', 'version'],
+    alias: { h: 'help', v: 'version' },
   })
 
   if (args['help'] === true) {
     write(usage(commandName))
+    return
+  }
+
+  if (args['version'] === true) {
+    write(seamapiWizardVersion)
     return
   }
 
@@ -73,7 +79,8 @@ const usage = (commandName: string): string =>
     '',
     'Options',
     '',
-    '  -h, --help   Display this help guide.',
+    '  -h, --help      Display this help guide.',
+    '  -v, --version   Display the version.',
     '',
   ].join('\n')
 

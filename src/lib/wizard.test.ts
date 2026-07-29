@@ -1,6 +1,7 @@
 import { beforeEach, expect, test, vi } from 'vitest'
 
 import { renderApp } from './render.js'
+import seamapiWizardVersion from './version.js'
 import wizard from './wizard.js'
 
 vi.mock('./render.js', () => ({ renderApp: vi.fn() }))
@@ -42,6 +43,21 @@ test('wizard: uses the given command name in usage', async () => {
 
 test('wizard: does not run the app when displaying usage', async () => {
   await captureOutput({ argv: ['--help'] })
+  expect(renderApp).not.toHaveBeenCalled()
+})
+
+test('wizard: displays the version with the --version flag', async () => {
+  const output = await captureOutput({ argv: ['--version'] })
+  expect(output.trim()).toBe(seamapiWizardVersion)
+})
+
+test('wizard: displays the version with the -v alias', async () => {
+  const output = await captureOutput({ argv: ['-v'] })
+  expect(output.trim()).toBe(seamapiWizardVersion)
+})
+
+test('wizard: does not run the app when displaying the version', async () => {
+  await captureOutput({ argv: ['--version'] })
   expect(renderApp).not.toHaveBeenCalled()
 })
 
