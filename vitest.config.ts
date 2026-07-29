@@ -13,7 +13,6 @@ export default defineConfig({
         '**/index.ts',
         'src/bin/cli.ts',
         'package/**/*.ts',
-        'examples/**/*.ts',
         '**/*.test.ts',
         '**/*.test.tsx',
       ],

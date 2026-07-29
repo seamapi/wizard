@@ -137,21 +137,18 @@ which is rarely what you want.
 Run it against a scratch project instead with
 
 ```
-$ mkdir -p /tmp/scratch && cd /tmp/scratch
-$ npm --prefix /path/to/wizard run wizard
+$ npm run wizard -- --cwd /tmp/scratch
 ```
 
-or mount it with an explicit `cwd` through the example with
-
-```
-$ npm run example -- wizard --cwd /tmp/scratch
-```
-
-Pass arguments through to the wizard with
+`--cwd` is a development convenience of that CLI, not an argument of the
+wizard: it becomes the `cwd` option.
+Every other argument is forwarded to the wizard untouched, so
 
 ```
 $ npm run wizard -- --help
 ```
+
+reaches the wizard as `--help`.
 
 ### Source layout
 

@@ -30,11 +30,5 @@
     }
   },
   "files": ["src/index.ts", "src/bin/cli.ts"],
-  "include": [
-    "src/**/*",
-    "test/**/*",
-    "examples/**/*",
-    "eslint.config.ts",
-    "vitest.config.ts"
-  ]
+  "include": ["src/**/*", "test/**/*", "eslint.config.ts", "vitest.config.ts"]
 }
