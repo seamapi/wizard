@@ -1,14 +1,16 @@
-import { createServer, type ServerResponse } from "node:http"
-import { randomBytes } from "node:crypto"
-import { join } from "node:path"
-import open from "open"
-import { getWorkspaceForApiKey, type SeamWorkspace } from "lib/util/seam-api.js"
-import { upsertEnvVar } from "lib/util/env-file.js"
+import { randomBytes } from 'node:crypto'
+import { createServer, type ServerResponse } from 'node:http'
+import { join } from 'node:path'
+
+import open from 'open'
+
+import { upsertEnvVar } from 'lib/util/env-file.js'
+import { getWorkspaceForApiKey, type SeamWorkspace } from 'lib/util/seam-api.js'
 
 // The dashboard "wizard" page mints a key and posts it back to the local
 // callback. Override the console host with SEAM_CONSOLE_URL for dev.
-const CONSOLE_URL = process.env.SEAM_CONSOLE_URL ?? "https://console.seam.co"
-const CONSOLE_WIZARD_PATH = "/dashboard/wizard"
+const CONSOLE_URL = process.env.SEAM_CONSOLE_URL ?? 'https://console.seam.co'
+const CONSOLE_WIZARD_PATH = '/dashboard/wizard'
 const CALLBACK_TIMEOUT_MS = 5 * 60 * 1000
 
 export interface WebConnectResult {
@@ -37,45 +39,45 @@ interface CallbackPayload {
 // and POSTs JSON { state, api_key } to http://127.0.0.1:<PORT>/ (CORS *).
 export async function connectViaWeb(
   root: string,
-  events: WebConnectEvents = {}
+  events: WebConnectEvents = {},
 ): Promise<WebConnectResult> {
-  const state = randomBytes(16).toString("hex")
+  const state = randomBytes(16).toString('hex')
 
   const payload = await new Promise<CallbackPayload>((resolve, reject) => {
     const server = createServer((request, response) => {
-      response.setHeader("Access-Control-Allow-Origin", "*")
-      response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS")
-      response.setHeader("Access-Control-Allow-Headers", "content-type")
+      response.setHeader('Access-Control-Allow-Origin', '*')
+      response.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+      response.setHeader('Access-Control-Allow-Headers', 'content-type')
 
-      if (request.method === "OPTIONS") {
+      if (request.method === 'OPTIONS') {
         response.writeHead(204)
         response.end()
         return
       }
-      if (request.method !== "POST") {
+      if (request.method !== 'POST') {
         response.writeHead(405)
         response.end()
         return
       }
 
-      let body = ""
-      request.on("data", (chunk) => {
+      let body = ''
+      request.on('data', (chunk) => {
         body += chunk
       })
-      request.on("end", () => {
+      request.on('end', () => {
         let parsed: Partial<CallbackPayload> = {}
         try {
           parsed = JSON.parse(body) as Partial<CallbackPayload>
         } catch {
-          respondJson(response, 400, { ok: false, error: "invalid_json" })
+          respondJson(response, 400, { ok: false, error: 'invalid_json' })
           return
         }
         if (parsed.state !== state) {
-          respondJson(response, 403, { ok: false, error: "state_mismatch" })
+          respondJson(response, 403, { ok: false, error: 'state_mismatch' })
           return
         }
         if (parsed.api_key == null || parsed.api_key.length === 0) {
-          respondJson(response, 400, { ok: false, error: "missing_api_key" })
+          respondJson(response, 400, { ok: false, error: 'missing_api_key' })
           return
         }
         respondJson(response, 200, { ok: true })
@@ -85,11 +87,11 @@ export async function connectViaWeb(
       })
     })
 
-    server.on("error", reject)
-    server.listen(0, "127.0.0.1", () => {
+    server.on('error', reject)
+    server.listen(0, '127.0.0.1', () => {
       const address = server.address()
-      if (address == null || typeof address === "string") {
-        reject(new Error("Could not start the local callback server."))
+      if (address == null || typeof address === 'string') {
+        reject(new Error('Could not start the local callback server.'))
         return
       }
       const url = `${CONSOLE_URL}${CONSOLE_WIZARD_PATH}?cli_connect=1&cli_port=${address.port}&cli_state=${state}`
@@ -102,21 +104,21 @@ export async function connectViaWeb(
 
     const timeout = setTimeout(() => {
       server.close()
-      reject(new Error("Timed out waiting for the browser."))
+      reject(new Error('Timed out waiting for the browser.'))
     }, CALLBACK_TIMEOUT_MS)
     timeout.unref()
   })
 
   const workspace = await getWorkspaceForApiKey(payload.api_key)
-  upsertEnvVar(join(root, ".env"), "SEAM_API_KEY", payload.api_key)
+  upsertEnvVar(join(root, '.env'), 'SEAM_API_KEY', payload.api_key)
   return { workspace }
 }
 
 function respondJson(
   response: ServerResponse,
   status: number,
-  body: unknown
+  body: unknown,
 ): void {
-  response.writeHead(status, { "content-type": "application/json" })
+  response.writeHead(status, { 'content-type': 'application/json' })
   response.end(JSON.stringify(body))
 }

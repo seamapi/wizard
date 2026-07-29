@@ -3,22 +3,23 @@
 // call happens (findExistingApiKey returns null before any API request).
 // A full interactive run can't be exercised headlessly.
 
-import React from "react"
-import { render } from "ink-testing-library"
-import { App } from "lib/app.js"
+import { render } from 'ink-testing-library'
+import React from 'react'
+
+import { App } from 'lib/app.js'
 
 delete process.env.SEAM_API_KEY
 
 const { lastFrame, unmount } = render(
-  <App root="/tmp/seam-wizard-smoke-nonexistent" />
+  <App root='/tmp/seam-wizard-smoke-nonexistent' />,
 )
-const frame = lastFrame() ?? ""
+const frame = lastFrame() ?? ''
 unmount()
 
-if (!frame.includes("Checking")) {
+if (!frame.includes('Checking')) {
   console.error(`SMOKE FAIL — unexpected first frame:\n${frame}`)
   process.exit(1)
 }
 
-console.log("SMOKE OK — initial frame rendered")
+console.log('SMOKE OK — initial frame rendered')
 process.exit(0)

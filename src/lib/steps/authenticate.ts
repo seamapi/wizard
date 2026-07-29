@@ -1,9 +1,7 @@
-import { join } from "node:path"
-import {
-  getWorkspaceForApiKey,
-  type SeamWorkspace,
-} from "lib/util/seam-api.js"
-import { upsertEnvVar, findExistingApiKey } from "lib/util/env-file.js"
+import { join } from 'node:path'
+
+import { findExistingApiKey, upsertEnvVar } from 'lib/util/env-file.js'
+import { getWorkspaceForApiKey, type SeamWorkspace } from 'lib/util/seam-api.js'
 
 export interface AuthResult {
   workspace: SeamWorkspace
@@ -21,7 +19,7 @@ export interface ExistingKeyResult {
 // Return the workspace for an already-present SEAM_API_KEY (env or .env*), or
 // null when there is none / it doesn't verify.
 export async function findVerifiedExistingKey(
-  root: string
+  root: string,
 ): Promise<ExistingKeyResult | null> {
   const existing = findExistingApiKey(root)
   if (existing == null) return null
@@ -36,10 +34,10 @@ export async function findVerifiedExistingKey(
 // Verify a pasted key and save it to .env. Throws (ApiKeyError) if invalid.
 export async function verifyAndSaveKey(
   root: string,
-  api_key: string
+  api_key: string,
 ): Promise<AuthResult> {
   const trimmed = api_key.trim()
   const workspace = await getWorkspaceForApiKey(trimmed)
-  upsertEnvVar(join(root, ".env"), "SEAM_API_KEY", trimmed)
+  upsertEnvVar(join(root, '.env'), 'SEAM_API_KEY', trimmed)
   return { workspace }
 }

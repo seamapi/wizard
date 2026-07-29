@@ -1,13 +1,13 @@
-import { mkdirSync, writeFileSync } from "node:fs"
-import { join } from "node:path"
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 // Top-level fork: let Seam host the UI (the app calls ~2 endpoints), or drive
 // everything through the API and build the UI yourself.
-export type BuildMode = "customer_portal" | "full_api"
+export type BuildMode = 'customer_portal' | 'full_api'
 
 export interface BuildBlock {
   id: string
-  group: "Core" | "Common"
+  group: 'Core' | 'Common'
   label: string
   // Appended (as an instruction line) to the agent goal when selected.
   agent_hint: string
@@ -18,55 +18,55 @@ export interface BuildBlock {
 // the default-checked item.
 export const CORE_BLOCKS: BuildBlock[] = [
   {
-    id: "connect_device",
-    group: "Core",
-    label: "Connect a device (Connect Webview + connected accounts)",
+    id: 'connect_device',
+    group: 'Core',
+    label: 'Connect a device (Connect Webview + connected accounts)',
     agent_hint:
-      "Set up a Connect Webview so an end user can connect their account and devices, then list the connected devices.",
+      'Set up a Connect Webview so an end user can connect their account and devices, then list the connected devices.',
   },
   {
-    id: "access_grants",
-    group: "Core",
-    label: "Access Grants — grant a person access",
+    id: 'access_grants',
+    group: 'Core',
+    label: 'Access Grants — grant a person access',
     agent_hint:
       "Create an Access Grant to give a person access to a space or device (Seam's recommended API for granting access).",
   },
   {
-    id: "user_identities",
-    group: "Core",
-    label: "User Identities (the people who receive access)",
+    id: 'user_identities',
+    group: 'Core',
+    label: 'User Identities (the people who receive access)',
     agent_hint:
-      "Create and manage User Identities representing the people who receive access.",
+      'Create and manage User Identities representing the people who receive access.',
   },
 ]
 
 // Common building blocks — frequent next steps beyond the core.
 export const COMMON_BLOCKS: BuildBlock[] = [
   {
-    id: "access_codes",
-    group: "Common",
-    label: "Access codes (PIN codes on locks)",
-    agent_hint: "Program PIN access codes on smart locks.",
+    id: 'access_codes',
+    group: 'Common',
+    label: 'Access codes (PIN codes on locks)',
+    agent_hint: 'Program PIN access codes on smart locks.',
   },
   {
-    id: "reservations",
-    group: "Common",
-    label: "Reservations → access (PMS / booking flow)",
+    id: 'reservations',
+    group: 'Common',
+    label: 'Reservations → access (PMS / booking flow)',
     agent_hint:
-      "Wire a booking/reservation flow so each reservation automatically provisions and revokes access.",
+      'Wire a booking/reservation flow so each reservation automatically provisions and revokes access.',
   },
   {
-    id: "mobile_keys",
-    group: "Common",
-    label: "Mobile keys / credentials",
-    agent_hint: "Issue mobile-key credentials to users.",
+    id: 'mobile_keys',
+    group: 'Common',
+    label: 'Mobile keys / credentials',
+    agent_hint: 'Issue mobile-key credentials to users.',
   },
   {
-    id: "webhooks",
-    group: "Common",
-    label: "Webhooks & events",
+    id: 'webhooks',
+    group: 'Common',
+    label: 'Webhooks & events',
     agent_hint:
-      "Subscribe to Seam webhooks and handle the events (e.g. access granted, device connected).",
+      'Subscribe to Seam webhooks and handle the events (e.g. access granted, device connected).',
   },
 ]
 
@@ -85,20 +85,20 @@ export function composeGoal(args: {
   framework: string | null
 }): string {
   const { mode, selections, note, framework } = args
-  const target = framework ?? "the project"
+  const target = framework ?? 'the project'
   const note_suffix =
     note != null && note.trim().length > 0
       ? ` Additional context from the developer: ${note.trim()}`
-      : ""
+      : ''
 
-  if (mode === "customer_portal") {
+  if (mode === 'customer_portal') {
     return (
-      "Integrate Seam using the Customer Portal so the UI is Seam-hosted and " +
-      "this app only calls a couple of endpoints. Create a Customer Portal for " +
-      "a customer (it returns a hosted URL), embed it in the app (iframe or a " +
-      "magic link), and regenerate the portal per visit since the session is " +
+      'Integrate Seam using the Customer Portal so the UI is Seam-hosted and ' +
+      'this app only calls a couple of endpoints. Create a Customer Portal for ' +
+      'a customer (it returns a hosted URL), embed it in the app (iframe or a ' +
+      'magic link), and regenerate the portal per visit since the session is ' +
       `short-lived. Wire it into ${target}'s conventions, load SEAM_API_KEY from ` +
-      "the existing .env, and add a short runnable example." +
+      'the existing .env, and add a short runnable example.' +
       note_suffix
     )
   }
@@ -107,13 +107,13 @@ export function composeGoal(args: {
     .map((id) => blockById(id)?.agent_hint)
     .filter((hint): hint is string => hint != null)
     .map((hint) => `- ${hint}`)
-    .join("\n")
+    .join('\n')
 
   return (
-    "Set up a Seam integration that controls everything through the Seam API. " +
+    'Set up a Seam integration that controls everything through the Seam API. ' +
     `Implement the following, wired into ${target}'s conventions:\n${hints}\n` +
-    "Load SEAM_API_KEY from the existing .env, keep changes minimal and " +
-    "idiomatic, and add a short runnable example." +
+    'Load SEAM_API_KEY from the existing .env, keep changes minimal and ' +
+    'idiomatic, and add a short runnable example.' +
     note_suffix
   )
 }
@@ -134,7 +134,7 @@ export interface OnboardingRecord {
     app_type_guess: string | null
     seam_already_setup: boolean
     used_onboarding: boolean
-    recommendation_source: "llm" | "heuristic"
+    recommendation_source: 'llm' | 'heuristic'
   }
   result?: {
     ok: boolean
@@ -148,13 +148,16 @@ export interface OnboardingRecord {
 // what was set up, and the embedded agent / a later editor agent can read it.
 export function writeOnboardingRecord(
   root: string,
-  record: Omit<OnboardingRecord, "schema_version">
+  record: Omit<OnboardingRecord, 'schema_version'>,
 ): void {
-  const dir = join(root, ".seam")
+  const dir = join(root, '.seam')
   mkdirSync(dir, { recursive: true })
   const full: OnboardingRecord = {
     schema_version: RECORD_SCHEMA_VERSION,
     ...record,
   }
-  writeFileSync(join(dir, "onboarding.json"), `${JSON.stringify(full, null, 2)}\n`)
+  writeFileSync(
+    join(dir, 'onboarding.json'),
+    `${JSON.stringify(full, null, 2)}\n`,
+  )
 }

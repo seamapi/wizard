@@ -1,14 +1,14 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs"
-import { join } from "node:path"
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 
-export type EnvWriteResult = "created" | "updated" | "added"
+export type EnvWriteResult = 'created' | 'updated' | 'added'
 
 // dotenv files we look at for an existing key, in priority order.
 const ENV_FILE_NAMES = [
-  ".env.local",
-  ".env",
-  ".env.development",
-  ".env.development.local",
+  '.env.local',
+  '.env',
+  '.env.development',
+  '.env.development.local',
 ]
 
 export interface FoundApiKey {
@@ -21,16 +21,16 @@ export interface FoundApiKey {
 export function findExistingApiKey(root: string): FoundApiKey | null {
   const from_process = process.env.SEAM_API_KEY?.trim()
   if (from_process != null && from_process.length > 0) {
-    return { api_key: from_process, source: "environment" }
+    return { api_key: from_process, source: 'environment' }
   }
 
   for (const file_name of ENV_FILE_NAMES) {
     const file_path = join(root, file_name)
     if (!existsSync(file_path)) continue
-    const match = readFileSync(file_path, "utf8").match(
-      /^\s*SEAM_API_KEY\s*=\s*(.+?)\s*$/m
+    const match = readFileSync(file_path, 'utf8').match(
+      /^\s*SEAM_API_KEY\s*=\s*(.+?)\s*$/m,
     )
-    const value = match?.[1]?.replace(/^["']|["']$/g, "").trim()
+    const value = match?.[1]?.replace(/^["']|["']$/g, '').trim()
     if (value != null && value.length > 0) {
       return { api_key: value, source: file_name }
     }
@@ -44,24 +44,24 @@ export function findExistingApiKey(root: string): FoundApiKey | null {
 export function upsertEnvVar(
   file_path: string,
   key: string,
-  value: string
+  value: string,
 ): EnvWriteResult {
   const line = `${key}=${value}`
 
   if (!existsSync(file_path)) {
     writeFileSync(file_path, `${line}\n`)
-    return "created"
+    return 'created'
   }
 
-  const content = readFileSync(file_path, "utf8")
-  const existing_line = new RegExp(`^${key}=.*$`, "m")
+  const content = readFileSync(file_path, 'utf8')
+  const existing_line = new RegExp(`^${key}=.*$`, 'm')
 
   if (existing_line.test(content)) {
     writeFileSync(file_path, content.replace(existing_line, line))
-    return "updated"
+    return 'updated'
   }
 
-  const separator = content.length === 0 || content.endsWith("\n") ? "" : "\n"
+  const separator = content.length === 0 || content.endsWith('\n') ? '' : '\n'
   writeFileSync(file_path, `${content}${separator}${line}\n`)
-  return "added"
+  return 'added'
 }

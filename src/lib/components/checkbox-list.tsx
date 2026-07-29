@@ -1,5 +1,5 @@
-import React, { useState } from "react"
-import { Box, Text, useInput } from "ink"
+import { Box, Text, useInput } from 'ink'
+import React, { useState } from 'react'
 
 export interface CheckboxItem {
   id: string
@@ -21,15 +21,15 @@ export function CheckboxList({
 }): React.ReactElement {
   const [cursor, setCursor] = useState(0)
   const [selected, setSelected] = useState<Set<string>>(
-    () => new Set(initial_selected)
+    () => new Set(initial_selected),
   )
 
   useInput((input, key) => {
-    if (key.upArrow || input === "k") {
+    if (key.upArrow || input === 'k') {
       setCursor((current) => (current - 1 + items.length) % items.length)
-    } else if (key.downArrow || input === "j") {
+    } else if (key.downArrow || input === 'j') {
       setCursor((current) => (current + 1) % items.length)
-    } else if (input === " ") {
+    } else if (input === ' ') {
       const id = items[cursor]?.id
       if (id == null) return
       setSelected((previous) => {
@@ -39,12 +39,14 @@ export function CheckboxList({
         return next
       })
     } else if (key.return) {
-      onSubmit(items.filter((item) => selected.has(item.id)).map((item) => item.id))
+      onSubmit(
+        items.filter((item) => selected.has(item.id)).map((item) => item.id),
+      )
     }
   })
 
   return (
-    <Box flexDirection="column">
+    <Box flexDirection='column'>
       {items.map((item, index) => {
         const is_cursor = index === cursor
         const is_checked = selected.has(item.id)
@@ -52,16 +54,16 @@ export function CheckboxList({
           item.group != null && item.group !== items[index - 1]?.group
         return (
           <React.Fragment key={item.id}>
-            {show_group && <Text color="gray">{`  ${item.group ?? ""}`}</Text>}
-            <Text color={is_cursor ? "cyan" : undefined}>
-              {is_cursor ? "❯ " : "  "}
-              {is_checked ? "◉ " : "◯ "}
+            {show_group && <Text color='gray'>{`  ${item.group ?? ''}`}</Text>}
+            <Text color={is_cursor ? 'cyan' : undefined}>
+              {is_cursor ? '❯ ' : '  '}
+              {is_checked ? '◉ ' : '◯ '}
               {item.label}
             </Text>
           </React.Fragment>
         )
       })}
-      <Text color="gray">{"  ↑/↓ move · space toggle · enter confirm"}</Text>
+      <Text color='gray'>{'  ↑/↓ move · space toggle · enter confirm'}</Text>
     </Box>
   )
 }

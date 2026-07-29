@@ -2,7 +2,7 @@
 // avoid pulling in the full SDK just for a health check — a single fetch keeps
 // the wizard's install footprint tiny.
 
-const SEAM_API_BASE = "https://connect.getseam.com"
+const SEAM_API_BASE = 'https://connect.getseam.com'
 
 export interface SeamWorkspace {
   workspace_id: string
@@ -15,38 +15,38 @@ export class ApiKeyError extends Error {}
 // Validates the key by fetching the workspace it belongs to. Returns the
 // workspace so the wizard can show which workspace the key is for.
 export async function getWorkspaceForApiKey(
-  api_key: string
+  api_key: string,
 ): Promise<SeamWorkspace> {
   let response: Response
   try {
     response = await fetch(`${SEAM_API_BASE}/workspaces/get`, {
-      method: "POST",
+      method: 'POST',
       headers: {
         authorization: `Bearer ${api_key}`,
-        "content-type": "application/json",
+        'content-type': 'application/json',
       },
-      body: "{}",
+      body: '{}',
     })
   } catch {
     throw new ApiKeyError(
-      "Could not reach the Seam API. Check your network connection and try again."
+      'Could not reach the Seam API. Check your network connection and try again.',
     )
   }
 
   if (response.status === 401) {
     throw new ApiKeyError(
-      "That key was rejected (401). Make sure you copied the full key, including the seam_ prefix."
+      'That key was rejected (401). Make sure you copied the full key, including the seam_ prefix.',
     )
   }
   if (!response.ok) {
     throw new ApiKeyError(
-      `The Seam API returned ${response.status}. Please try again in a moment.`
+      `The Seam API returned ${response.status}. Please try again in a moment.`,
     )
   }
 
   const body = (await response.json()) as { workspace?: SeamWorkspace }
   if (body.workspace == null) {
-    throw new ApiKeyError("Unexpected response from the Seam API.")
+    throw new ApiKeyError('Unexpected response from the Seam API.')
   }
   return body.workspace
 }
@@ -80,27 +80,27 @@ export interface WizardInferenceSession {
 // not the API key — is what the embedded agent sends to Seam-hosted inference,
 // so the long-lived key stays off the repeated inference path.
 export async function exchangeWizardInferenceToken(
-  api_key: string
+  api_key: string,
 ): Promise<WizardInferenceSession> {
   let response: Response
   try {
     response = await fetch(`${SEAM_INFERENCE_BASE_URL}/session`, {
-      method: "POST",
+      method: 'POST',
       headers: {
         authorization: `Bearer ${api_key}`,
-        "content-type": "application/json",
+        'content-type': 'application/json',
       },
-      body: "{}",
+      body: '{}',
     })
   } catch {
     throw new ApiKeyError(
-      "Could not reach Seam to start the AI session. Check your network connection and try again."
+      'Could not reach Seam to start the AI session. Check your network connection and try again.',
     )
   }
 
   if (!response.ok) {
     throw new ApiKeyError(
-      `Seam couldn't start the AI session (${response.status}). Please try again in a moment.`
+      `Seam couldn't start the AI session (${response.status}). Please try again in a moment.`,
     )
   }
 
@@ -109,7 +109,9 @@ export async function exchangeWizardInferenceToken(
     onboarding?: WizardOnboarding | null
   }
   if (body.wizard_session == null) {
-    throw new ApiKeyError("Unexpected response from Seam starting the AI session.")
+    throw new ApiKeyError(
+      'Unexpected response from Seam starting the AI session.',
+    )
   }
   return {
     token: body.wizard_session.token,
@@ -124,21 +126,21 @@ export async function exchangeWizardInferenceToken(
 // recommendation — not the full integration (that goes through the agent SDK).
 export async function callInferenceForText(
   inference: { base_url: string; token: string },
-  args: { model: string; max_tokens: number; system: string; user: string }
+  args: { model: string; max_tokens: number; system: string; user: string },
 ): Promise<string> {
   const response = await fetch(`${inference.base_url}/v1/messages`, {
-    method: "POST",
+    method: 'POST',
     headers: {
       authorization: `Bearer ${inference.token}`,
-      "content-type": "application/json",
-      "anthropic-version": "2023-06-01",
+      'content-type': 'application/json',
+      'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
       model: args.model,
       max_tokens: args.max_tokens,
       system: args.system,
       stream: true,
-      messages: [{ role: "user", content: args.user }],
+      messages: [{ role: 'user', content: args.user }],
     }),
   })
 
@@ -150,33 +152,33 @@ export async function callInferenceForText(
 }
 
 async function readTextDeltas(
-  body: ReadableStream<Uint8Array>
+  body: ReadableStream<Uint8Array>,
 ): Promise<string> {
   const reader = body.getReader()
   const decoder = new TextDecoder()
-  let buffer = ""
-  let text = ""
+  let buffer = ''
+  let text = ''
   for (;;) {
     const { value, done } = await reader.read()
     if (done) break
     buffer += decoder.decode(value, { stream: true })
-    const lines = buffer.split("\n")
-    buffer = lines.pop() ?? ""
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
     for (const line of lines) {
       const trimmed = line.trim()
-      if (!trimmed.startsWith("data:")) continue
-      const payload = trimmed.slice("data:".length).trim()
-      if (payload.length === 0 || payload === "[DONE]") continue
+      if (!trimmed.startsWith('data:')) continue
+      const payload = trimmed.slice('data:'.length).trim()
+      if (payload.length === 0 || payload === '[DONE]') continue
       try {
         const event = JSON.parse(payload) as {
           type?: string
           delta?: { type?: string; text?: string }
         }
         if (
-          event.type === "content_block_delta" &&
-          event.delta?.type === "text_delta"
+          event.type === 'content_block_delta' &&
+          event.delta?.type === 'text_delta'
         ) {
-          text += event.delta.text ?? ""
+          text += event.delta.text ?? ''
         }
       } catch {
         // Ignore keep-alive pings and any non-JSON SSE lines.
