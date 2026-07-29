@@ -77,7 +77,8 @@ The `commandName` option is only used in help output
 so that the wizard describes itself using the command
 that was actually run.
 
-The wizard handles `--help` itself and otherwise takes over the terminal
+The wizard handles `--help` and `--version` itself
+and otherwise takes over the terminal
 until the developer finishes, then restores it and prints a transcript of
 the run. It resolves when the wizard is done, and only rejects if the
 wizard could not run at all: a step that fails reports itself to the
@@ -139,7 +140,8 @@ Every other argument is forwarded to the wizard untouched.
 The wizard is an [Ink] application under `src/lib`:
 
 - `wizard.ts` is the entrypoint the package exports.
-  It parses arguments, handles `--help`, and hands off to the renderer.
+  It parses arguments, handles `--help` and `--version`,
+  and hands off to the renderer.
 - `render.tsx` runs the app full-screen
   and reprints its transcript on exit.
 - `app.tsx` is the state machine driving the run,
@@ -147,6 +149,12 @@ The wizard is an [Ink] application under `src/lib`:
 - `steps/` holds the logic for each step, with no UI in it.
 - `util/` holds the Seam API client, dotenv handling,
   and the subprocess runner.
+- `version.ts` holds the package version reported by `--version`.
+  It ships a `0.0.0` placeholder that `prepack.ts` replaces with the
+  version from `package.json` when the package is packed,
+  recompiling just that module with `tsconfig.prepack.json`.
+  The version is only correct in a packed or published package,
+  not when running from a clone.
 
 Modules under `src/lib` are imported through the `lib/*` path alias
 rather than parent-relative specifiers.
