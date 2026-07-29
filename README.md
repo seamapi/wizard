@@ -7,12 +7,46 @@ The AI powered Seam setup wizard.
 
 ## Description
 
-TODO
+An interactive terminal wizard that takes a project from zero to a working
+Seam integration. Run inside a project, it will:
+
+1. **Detect the project** — JavaScript/TypeScript or Python,
+   and the package manager or installer in use.
+2. **Connect a Seam account** — an existing `SEAM_API_KEY`
+   in the environment or a `.env*` file is verified and reused.
+   Otherwise the developer can continue in the browser, where the
+   Console mints a fresh key and hands it back over a localhost
+   callback, or paste a key by hand.
+   Either way the key is verified and saved to `.env`.
+3. **Install the Seam SDK** — `seam` via npm, pnpm, yarn, or bun
+   for JavaScript, or pip, poetry, or uv for Python.
+4. **Install the Seam plugin** —
+   [`seamapi/seam-plugin`](https://github.com/seamapi/seam-plugin),
+   which provides the Seam integration skills and the `seam-docs` MCP
+   for the developer's AI coding assistant.
+   Claude Code is detected via `.claude` or `CLAUDE.md`,
+   in which case the wizard prints the slash commands to run,
+   since an external program cannot drive them.
+5. **Write the integration** — optionally. The wizard analyzes the
+   project, recommends an approach, confirms it with the developer,
+   records the plan in `.seam/onboarding.json`, and then runs an
+   embedded agent that writes the integration for review as a diff.
+
+The wizard never asks for a password: keys are created in the browser
+or pasted, never minted here. Inference for the analysis and the
+embedded agent is routed through Seam, so no developer Anthropic API
+key is needed.
+
+The wizard is built with [Ink] and takes over the terminal for the
+duration of a run, restoring it and reprinting a transcript on the way
+out.
 
 This package is not a standalone command line program:
 it deliberately publishes no `bin`.
 The wizard is distributed as a library and mounted by the
 [Seam CLI](https://github.com/seamapi/cli) under `seam wizard`.
+
+[Ink]: https://github.com/vadimdemedes/ink
 
 ## Installation
 
@@ -43,6 +77,37 @@ The `commandName` option is only used in help output
 so that the wizard describes itself using the command
 that was actually run.
 
+The wizard handles `--help` itself and otherwise takes over the terminal
+until the developer finishes, then restores it and prints a transcript of
+the run. It resolves when the wizard is done, and only rejects if the
+wizard could not run at all: a step that fails reports itself to the
+developer and does not reject.
+
+Pass `cwd` to set the project root the wizard sets up.
+It defaults to `process.cwd()`,
+which is the project the command was run in.
+The wizard reads and writes files there,
+e.g., `.env` and `.seam/onboarding.json`.
+
+```ts
+await wizard({
+  argv: process.argv.slice(3),
+  commandName: 'seam wizard',
+  cwd: '/path/to/project',
+})
+```
+
+### Environment variables
+
+- `SEAM_API_KEY`: An existing Seam API key.
+  When set, the wizard verifies and reuses it instead of asking
+  the developer to connect an account.
+  The wizard also looks for this in the project's `.env*` files,
+  and writes the key it obtains back to `.env`.
+- `SEAM_CONSOLE_URL`: Points the browser connection flow at a
+  non-production Console.
+  Defaults to `https://console.seam.co`.
+
 ## Development and Testing
 
 ### Quickstart
@@ -65,6 +130,49 @@ This runs the development CLI in `src/bin/cli.ts`,
 which simply calls the wizard with the arguments given.
 That file exists for local development only:
 it is excluded from the build and from the published package.
+
+Because the wizard sets up whichever project it is run in,
+`npm run wizard` sets up this repository itself,
+which is rarely what you want.
+Run it against a scratch project instead with
+
+```
+$ mkdir -p /tmp/scratch && cd /tmp/scratch
+$ npm --prefix /path/to/wizard run wizard
+```
+
+or mount it with an explicit `cwd` through the example with
+
+```
+$ npm run example -- wizard --cwd /tmp/scratch
+```
+
+Pass arguments through to the wizard with
+
+```
+$ npm run wizard -- --help
+```
+
+### Source layout
+
+The wizard is an [Ink] application under `src/lib`:
+
+- `wizard.ts` is the entrypoint the package exports.
+  It parses arguments, handles `--help`, and hands off to the renderer.
+- `render.tsx` runs the app full-screen
+  and reprints its transcript on exit.
+- `app.tsx` is the state machine driving the run,
+  one phase per step, and holds all of the rendering.
+- `steps/` holds the logic for each step, with no UI in it.
+- `util/` holds the Seam API client, dotenv handling,
+  and the subprocess runner.
+
+Modules under `src/lib` are imported through the `lib/*` path alias
+rather than parent-relative specifiers.
+
+Types that mirror the Seam API wire format
+or the on-disk `.seam/onboarding.json` record keep their `snake_case`
+property names, which the lint configuration allows.
 
 Primary development tasks are defined under `scripts` in `package.json`
 and available via `npm run`.
