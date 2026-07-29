@@ -15,10 +15,16 @@ export default defineConfig({
         'package/**/*.ts',
         'examples/**/*.ts',
         '**/*.test.ts',
+        '**/*.test.tsx',
       ],
       provider: 'v8',
       reporter: ['html', 'lcov', 'text'],
     },
-    include: ['src/**/*.test.ts', 'test/**/*.test.ts'],
+    include: [
+      'src/**/*.test.ts',
+      'src/**/*.test.tsx',
+      'test/**/*.test.ts',
+      'test/**/*.test.tsx',
+    ],
   },
 })

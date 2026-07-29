@@ -34,7 +34,8 @@
     "src",
     "!src/bin",
     "!test",
-    "!**/*.test.ts"
+    "!**/*.test.ts",
+    "!**/*.test.tsx"
   ],
   "scripts": {
     "build": "npm run build:entrypoints",
@@ -76,17 +77,26 @@
     }
   },
   "dependencies": {
-    "minimist": "^1.2.8"
+    "@anthropic-ai/claude-agent-sdk": "^0.3.216",
+    "ink": "^5.2.1",
+    "ink-select-input": "^6.2.0",
+    "ink-spinner": "^5.0.0",
+    "ink-text-input": "^6.0.0",
+    "minimist": "^1.2.8",
+    "open": "^10.1.0",
+    "react": "^18.3.1"
   },
   "devDependencies": {
     "@types/minimist": "^1.2.5",
     "@types/node": "^24.10.9",
+    "@types/react": "^18.3.27",
     "@vitest/coverage-v8": "^4.1.10",
     "del-cli": "^7.0.0",
     "eslint": "^9.31.0",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "eslint-plugin-unused-imports": "^4.1.4",
+    "ink-testing-library": "^4.0.0",
     "jiti": "^2.4.2",
     "landlubber": "^2.0.0",
     "neostandard": "^0.13.0",
