@@ -120,10 +120,10 @@ $ npm install
 $ npm run test:watch
 ```
 
-Run the wizard locally with
+Run the wizard locally against a project with
 
 ```
-$ npm run wizard
+$ npm run wizard -- --cwd <project>
 ```
 
 This runs the development CLI in `src/bin/cli.ts`,
@@ -131,24 +131,8 @@ which simply calls the wizard with the arguments given.
 That file exists for local development only:
 it is excluded from the build and from the published package.
 
-Because the wizard sets up whichever project it is run in,
-`npm run wizard` sets up this repository itself,
-which is rarely what you want.
-Run it against a scratch project instead with
-
-```
-$ npm run wizard -- --cwd /tmp/scratch
-```
-
-`--cwd` is a development convenience of that CLI, not an argument of the
-wizard: it becomes the `cwd` option.
-Every other argument is forwarded to the wizard untouched, so
-
-```
-$ npm run wizard -- --help
-```
-
-reaches the wizard as `--help`.
+`--cwd` is an option of that CLI, which becomes the wizard's `cwd`.
+Every other argument is forwarded to the wizard untouched.
 
 ### Source layout
 
