@@ -94,11 +94,18 @@ export function composeGoal(args: {
   if (mode === 'customer_portal') {
     return (
       'Integrate Seam using the Customer Portal so the UI is Seam-hosted and ' +
-      'this app only calls a couple of endpoints. Create a Customer Portal for ' +
-      'a customer (it returns a hosted URL), embed it in the app (iframe or a ' +
-      'magic link), and regenerate the portal per visit since the session is ' +
-      `short-lived. Wire it into ${target}'s conventions, load SEAM_API_KEY from ` +
-      'the existing .env, and add a short runnable example.' +
+      'this app only calls a few endpoints. Build two flows. ' +
+      '(1) A connections-and-mapping page: create an embedded Customer Portal ' +
+      '(is_embedded: true) with the connect, organize, and manage features so ' +
+      'the customer connects their device accounts and maps devices onto their ' +
+      'spaces, and embed the returned hosted URL in an iframe. ' +
+      '(2) Open a reservation directly: push the reservation to Seam ' +
+      '(customers.pushData), then create a portal deep-linked to that ' +
+      'reservation (landing_page or deep_link) that a reservation page links ' +
+      'to. Regenerate the portal on every visit since the session token is ' +
+      `short-lived. Wire it into ${target}'s conventions, load SEAM_API_KEY ` +
+      "from the existing .env, model the structure on Seam's Customer Portal " +
+      'example app for this framework, and add a short runnable example.' +
       noteSuffix
     )
   }
