@@ -1,10 +1,9 @@
 import { randomBytes } from 'node:crypto'
 import { createServer, type ServerResponse } from 'node:http'
-import { join } from 'node:path'
 
 import open from 'open'
 
-import { upsertEnvVar } from 'lib/util/env-file.js'
+import { saveProjectApiKey } from 'lib/util/env-file.js'
 import { getWorkspaceForApiKey, type SeamWorkspace } from 'lib/util/seam-api.js'
 
 // The dashboard "wizard" page mints a key and posts it back to the local
@@ -110,7 +109,7 @@ export async function connectViaWeb(
   })
 
   const workspace = await getWorkspaceForApiKey(payload.api_key)
-  upsertEnvVar(join(root, '.env'), 'SEAM_API_KEY', payload.api_key)
+  saveProjectApiKey(root, payload.api_key)
   return { workspace }
 }
 

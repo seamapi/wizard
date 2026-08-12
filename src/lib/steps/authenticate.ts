@@ -1,6 +1,5 @@
-import { join } from 'node:path'
-
-import { findExistingApiKey, upsertEnvVar } from 'lib/util/env-file.js'
+import { getAuth } from 'lib/adapter.js'
+import { findExistingApiKey, saveProjectApiKey } from 'lib/util/env-file.js'
 import { getWorkspaceForApiKey, type SeamWorkspace } from 'lib/util/seam-api.js'
 
 export interface AuthResult {
@@ -9,7 +8,13 @@ export interface AuthResult {
 
 export interface ExistingKeyResult {
   workspace: SeamWorkspace
+  api_key: string
   source: string
+}
+
+export interface CliKeyResult {
+  workspace: SeamWorkspace
+  api_key: string
 }
 
 // Pure auth logic (no UI). The Ink app drives the prompts and renders progress.
@@ -25,19 +30,34 @@ export async function findVerifiedExistingKey(
   if (existing == null) return null
   try {
     const workspace = await getWorkspaceForApiKey(existing.api_key)
-    return { workspace, source: existing.source }
+    return { workspace, api_key: existing.api_key, source: existing.source }
   } catch {
     return null
   }
 }
 
-// Verify a pasted key and save it to .env. Throws (ApiKeyError) if invalid.
+export async function findVerifiedCliKey(): Promise<CliKeyResult | null> {
+  const { apiKey } = getAuth()
+  if (apiKey == null) return null
+  try {
+    const workspace = await getWorkspaceForApiKey(apiKey)
+    return { workspace, api_key: apiKey }
+  } catch {
+    return null
+  }
+}
+
+// Verify a pasted key and save it to the project. Throws (ApiKeyError) if invalid.
 export async function verifyAndSaveKey(
   root: string,
   apiKey: string,
 ): Promise<AuthResult> {
   const trimmed = apiKey.trim()
   const workspace = await getWorkspaceForApiKey(trimmed)
-  upsertEnvVar(join(root, '.env'), 'SEAM_API_KEY', trimmed)
+  saveProjectApiKey(root, trimmed)
   return { workspace }
+}
+
+export function saveVerifiedKey(root: string, apiKey: string): void {
+  saveProjectApiKey(root, apiKey)
 }

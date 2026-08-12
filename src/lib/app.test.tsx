@@ -1,6 +1,7 @@
 import { render } from 'ink-testing-library'
-import { afterEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
+import { createMemoryAdapter, resetAdapter, setAdapter } from './adapter.js'
 import { App } from './app.js'
 
 // A project root that does not exist, with no key in the environment, keeps the
@@ -9,7 +10,12 @@ import { App } from './app.js'
 // be exercised headlessly, so this covers the mount and the first frame only.
 const NONEXISTENT_ROOT = '/nonexistent/seam-wizard-test-project'
 
+beforeEach(() => {
+  setAdapter(createMemoryAdapter())
+})
+
 afterEach(() => {
+  resetAdapter()
   vi.unstubAllEnvs()
 })
 

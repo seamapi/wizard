@@ -1,10 +1,23 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
-import { findExistingApiKey, upsertEnvVar } from './env-file.js'
+import {
+  ensureEnvExample,
+  ensureGitignored,
+  findExistingApiKey,
+  saveProjectApiKey,
+  upsertEnvVar,
+} from './env-file.js'
 
 let dir = ''
 
@@ -159,4 +172,91 @@ test('upsertEnvVar: writes into an existing empty file without a leading newline
 
   expect(upsertEnvVar(filePath, 'SEAM_API_KEY', 'seam_new')).toBe('added')
   expect(readFileSync(filePath, 'utf8')).toBe('SEAM_API_KEY=seam_new\n')
+})
+
+test('saveProjectApiKey: writes the key, the example, and the ignore rule', () => {
+  mkdirSync(join(dir, '.git'))
+
+  const result = saveProjectApiKey(dir, 'seam_new_key')
+
+  expect(result).toEqual({
+    env: 'created',
+    example: 'created',
+    gitignore: 'added',
+  })
+  expect(readFileSync(join(dir, '.env'), 'utf8')).toBe(
+    'SEAM_API_KEY=seam_new_key\n',
+  )
+  expect(readFileSync(join(dir, '.env.example'), 'utf8')).toBe(
+    'SEAM_API_KEY=\n',
+  )
+  expect(readFileSync(join(dir, '.gitignore'), 'utf8')).toBe('.env\n')
+})
+
+test('saveProjectApiKey: never writes the key where it could be committed', () => {
+  mkdirSync(join(dir, '.git'))
+
+  saveProjectApiKey(dir, 'seam_new_key')
+
+  expect(readFileSync(join(dir, '.env.example'), 'utf8')).not.toContain(
+    'seam_new_key',
+  )
+})
+
+test('ensureEnvExample: leaves an example that already declares the key', () => {
+  writeEnvFile('.env.example', '# Seam\nSEAM_API_KEY=your-key-here\n')
+
+  expect(ensureEnvExample(dir)).toBe('unchanged')
+  expect(readFileSync(join(dir, '.env.example'), 'utf8')).toContain(
+    'your-key-here',
+  )
+})
+
+test('ensureEnvExample: adds the key to an example that lacks it', () => {
+  writeEnvFile('.env.example', 'OTHER=1\n')
+
+  expect(ensureEnvExample(dir)).toBe('added')
+  expect(readFileSync(join(dir, '.env.example'), 'utf8')).toBe(
+    'OTHER=1\nSEAM_API_KEY=\n',
+  )
+})
+
+test('ensureGitignored: adds the entry to an existing .gitignore', () => {
+  writeEnvFile('.gitignore', 'node_modules\n')
+
+  expect(ensureGitignored(dir, '.env')).toBe('added')
+  expect(readFileSync(join(dir, '.gitignore'), 'utf8')).toBe(
+    'node_modules\n.env\n',
+  )
+})
+
+test('ensureGitignored: terminates a last line that has no newline', () => {
+  writeEnvFile('.gitignore', 'node_modules')
+
+  ensureGitignored(dir, '.env')
+
+  expect(readFileSync(join(dir, '.gitignore'), 'utf8')).toBe(
+    'node_modules\n.env\n',
+  )
+})
+
+test('ensureGitignored: leaves an entry that is already ignored', () => {
+  writeEnvFile('.gitignore', 'node_modules\n/.env/\n')
+
+  expect(ensureGitignored(dir, '.env')).toBe('unchanged')
+  expect(readFileSync(join(dir, '.gitignore'), 'utf8')).toBe(
+    'node_modules\n/.env/\n',
+  )
+})
+
+test('ensureGitignored: starts a .gitignore for a repository without one', () => {
+  mkdirSync(join(dir, '.git'))
+
+  expect(ensureGitignored(dir, '.env')).toBe('added')
+  expect(readFileSync(join(dir, '.gitignore'), 'utf8')).toBe('.env\n')
+})
+
+test('ensureGitignored: writes no git files outside a repository', () => {
+  expect(ensureGitignored(dir, '.env')).toBe('unchanged')
+  expect(existsSync(join(dir, '.gitignore'))).toBe(false)
 })

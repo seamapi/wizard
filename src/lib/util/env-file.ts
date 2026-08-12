@@ -39,6 +39,65 @@ export function findExistingApiKey(root: string): FoundApiKey | null {
   return null
 }
 
+export interface ProjectEnvResult {
+  env: EnvWriteResult
+  example: EnvWriteResult | 'unchanged'
+  gitignore: 'added' | 'unchanged'
+}
+
+export function saveProjectApiKey(
+  root: string,
+  apiKey: string,
+): ProjectEnvResult {
+  return {
+    env: upsertEnvVar(join(root, '.env'), 'SEAM_API_KEY', apiKey),
+    ...ensureProjectEnvConventions(root),
+  }
+}
+
+export function ensureProjectEnvConventions(
+  root: string,
+): Omit<ProjectEnvResult, 'env'> {
+  return {
+    example: ensureEnvExample(root),
+    gitignore: ensureGitignored(root, '.env'),
+  }
+}
+
+export function ensureEnvExample(root: string): EnvWriteResult | 'unchanged' {
+  const filePath = join(root, '.env.example')
+  if (
+    existsSync(filePath) &&
+    /^\s*SEAM_API_KEY\s*=/m.test(readFileSync(filePath, 'utf8'))
+  ) {
+    return 'unchanged'
+  }
+  return upsertEnvVar(filePath, 'SEAM_API_KEY', '')
+}
+
+export function ensureGitignored(
+  root: string,
+  entry: string,
+): 'added' | 'unchanged' {
+  const filePath = join(root, '.gitignore')
+
+  if (!existsSync(filePath)) {
+    if (!existsSync(join(root, '.git'))) return 'unchanged'
+    writeFileSync(filePath, `${entry}\n`)
+    return 'added'
+  }
+
+  const content = readFileSync(filePath, 'utf8')
+  const isIgnored = content
+    .split('\n')
+    .some((line) => line.trim().replace(/^\/+|\/+$/g, '') === entry)
+  if (isIgnored) return 'unchanged'
+
+  const separator = content.length === 0 || content.endsWith('\n') ? '' : '\n'
+  writeFileSync(filePath, `${content}${separator}${entry}\n`)
+  return 'added'
+}
+
 // Upsert a KEY=value line into a dotenv file without disturbing other entries.
 // Returns what happened so the wizard can report it accurately.
 export function upsertEnvVar(
