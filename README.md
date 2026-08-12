@@ -134,7 +134,7 @@ $ npm run seam -- login
 $ npm run seam -- devices list
 ```
 
-Both run the Seam CLI from `devDependencies` through `src/bin/seam.ts`,
+Both run the Seam CLI from `devDependencies` through `src/bin/cli.ts`,
 with its `@seamapi/wizard` import pointed at this checkout,
 so the wizard runs as `seam wizard` does and with the adapter the CLI
 gives it.

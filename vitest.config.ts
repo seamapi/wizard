@@ -11,7 +11,7 @@ export default defineConfig({
     coverage: {
       exclude: [
         '**/index.ts',
-        'src/bin/seam.ts',
+        'src/bin/cli.ts',
         'package/**/*.ts',
         '**/*.test.ts',
         '**/*.test.tsx',
