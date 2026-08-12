@@ -1,25 +1,6 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { expect, test } from 'vitest'
 
-import { afterEach, beforeEach, expect, test } from 'vitest'
-
-import {
-  blockById,
-  composeGoal,
-  type OnboardingRecord,
-  writeOnboardingRecord,
-} from './build-plan.js'
-
-let dir = ''
-
-beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), 'seam-wizard-'))
-})
-
-afterEach(() => {
-  rmSync(dir, { recursive: true, force: true })
-})
+import { blockById, composeGoal } from './build-plan.js'
 
 const hintFor = (id: string): string => {
   const block = blockById(id)
@@ -162,50 +143,4 @@ test('composeGoal: omits the note when it is only whitespace', () => {
   })
 
   expect(goal).not.toContain('Additional context from the developer')
-})
-
-const exampleRecord: Omit<OnboardingRecord, 'schema_version'> = {
-  created_at: '2026-07-29T00:00:00.000Z',
-  mode: 'full_api',
-  selections: ['access_grants'],
-  note: null,
-  goal: 'Set up a Seam integration.',
-  analysis: {
-    sdk: 'javascript',
-    framework: 'Next.js',
-    app_type_guess: 'property management',
-    seam_already_setup: false,
-    used_onboarding: true,
-    recommendation_source: 'llm',
-  },
-}
-
-test('writeOnboardingRecord: writes the record to .seam/onboarding.json', () => {
-  writeOnboardingRecord(dir, exampleRecord)
-
-  const contents = readFileSync(join(dir, '.seam', 'onboarding.json'), 'utf8')
-  expect(JSON.parse(contents)).toEqual({
-    schema_version: 1,
-    ...exampleRecord,
-  })
-})
-
-test('writeOnboardingRecord: ends the file with a trailing newline', () => {
-  writeOnboardingRecord(dir, exampleRecord)
-
-  const contents = readFileSync(join(dir, '.seam', 'onboarding.json'), 'utf8')
-  expect(contents.endsWith('}\n')).toBe(true)
-})
-
-test('writeOnboardingRecord: keeps an optional result in the record', () => {
-  writeOnboardingRecord(dir, {
-    ...exampleRecord,
-    result: { ok: true, files_summary: 'Added src/seam.ts', cost_usd: 0.42 },
-  })
-
-  const contents = readFileSync(join(dir, '.seam', 'onboarding.json'), 'utf8')
-  expect(JSON.parse(contents)).toMatchObject({
-    schema_version: 1,
-    result: { ok: true, files_summary: 'Added src/seam.ts', cost_usd: 0.42 },
-  })
 })

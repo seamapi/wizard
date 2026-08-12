@@ -127,13 +127,23 @@ Run the wizard locally against a project with
 $ npm run wizard -- --cwd <project>
 ```
 
-This runs the development CLI in `src/bin/cli.ts`,
-which simply calls the wizard with the arguments given.
+Run any other Seam CLI command with
+
+```
+$ npm run seam -- login
+$ npm run seam -- devices list
+```
+
+Both run the Seam CLI from `devDependencies` through `src/bin/cli.ts`,
+with its `@seamapi/wizard` import pointed at this checkout,
+so the wizard runs as `seam wizard` does and with the adapter the CLI
+gives it.
 That file exists for local development only:
 it is excluded from the build and from the published package.
 
-`--cwd` is an option of that CLI, which becomes the wizard's `cwd`.
-Every other argument is forwarded to the wizard untouched.
+`--cwd <path>` is an option of that entry, for running against a scratch
+project instead of this repository.
+Every other argument is passed to the CLI untouched.
 
 ### Source layout
 

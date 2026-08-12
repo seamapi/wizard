@@ -1,6 +1,3 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
-
 // Top-level fork: let Seam host the UI (the app calls ~2 endpoints), or drive
 // everything through the API and build the UI yourself.
 export type BuildMode = 'customer_portal' | 'full_api'
@@ -122,49 +119,5 @@ export function composeGoal(args: {
     'Load SEAM_API_KEY from the existing .env, keep changes minimal and ' +
     'idiomatic, and add a short runnable example.' +
     noteSuffix
-  )
-}
-
-// Schema version for the on-disk record; bump on any breaking shape change.
-const RECORD_SCHEMA_VERSION = 1
-
-export interface OnboardingRecord {
-  schema_version: number
-  created_at: string
-  mode: BuildMode
-  selections: string[]
-  note: string | null
-  goal: string
-  analysis: {
-    sdk: string | null
-    framework: string | null
-    app_type_guess: string | null
-    seam_already_setup: boolean
-    used_onboarding: boolean
-    recommendation_source: 'llm' | 'heuristic'
-  }
-  result?: {
-    ok: boolean
-    files_summary: string
-    cost_usd: number | null
-  }
-}
-
-// Write the wizard's run record to <root>/.seam/onboarding.json. Holds no
-// secrets (the API key stays in .env), so it is safe to commit as a record of
-// what was set up, and the embedded agent / a later editor agent can read it.
-export function writeOnboardingRecord(
-  root: string,
-  record: Omit<OnboardingRecord, 'schema_version'>,
-): void {
-  const dir = join(root, '.seam')
-  mkdirSync(dir, { recursive: true })
-  const full: OnboardingRecord = {
-    schema_version: RECORD_SCHEMA_VERSION,
-    ...record,
-  }
-  writeFileSync(
-    join(dir, 'onboarding.json'),
-    `${JSON.stringify(full, null, 2)}\n`,
   )
 }

@@ -10,13 +10,18 @@ import {
   useState,
 } from 'react'
 
+import { getAuth } from './adapter.js'
 import { CheckboxList } from './components/checkbox-list.js'
 import {
   analyzeProject,
   type ProjectAnalysis,
 } from './steps/analyze-project.js'
 import {
+  type CliKeyResult,
+  type ExistingKeyResult,
+  findVerifiedCliKey,
   findVerifiedExistingKey,
+  saveVerifiedKey,
   verifyAndSaveKey,
 } from './steps/authenticate.js'
 import {
@@ -24,10 +29,14 @@ import {
   COMMON_BLOCKS,
   composeGoal,
   CORE_BLOCKS,
-  type OnboardingRecord,
-  writeOnboardingRecord,
 } from './steps/build-plan.js'
 import { connectViaWeb } from './steps/connect-web.js'
+import {
+  compareConnection,
+  type ConnectionChange,
+  describeChange,
+  saveConnection,
+} from './steps/connection.js'
 import {
   detectProject,
   installSeamSdkCommand,
@@ -40,13 +49,24 @@ import {
   SEAM_PLUGIN_NPX_COMMAND,
 } from './steps/install-seam-plugin.js'
 import { type IntegrateEvent, runIntegration } from './steps/integrate.js'
-import { findExistingApiKey } from './util/env-file.js'
+import {
+  type ProjectPlan,
+  readPreferredSdk,
+  readProjectRecord,
+  recordPlan,
+  recordResult,
+  writePreferredSdk,
+} from './store/index.js'
+import {
+  ensureProjectEnvConventions,
+  findExistingApiKey,
+} from './util/env-file.js'
 import { runInstall } from './util/run-install.js'
 import {
   ApiKeyError,
   exchangeWizardInferenceToken,
+  getInferenceBaseUrl,
   looksLikeSeamApiKey,
-  SEAM_INFERENCE_BASE_URL,
   type SeamWorkspace,
   type WizardInferenceSession,
 } from './util/seam-api.js'
@@ -65,6 +85,7 @@ type Phase =
   | { t: 'browser' }
   | { t: 'paste' }
   | { t: 'verify-paste'; api_key: string }
+  | { t: 'drift'; changes: ConnectionChange[] }
   | { t: 'sdk' }
   | { t: 'install-sdk' }
   | { t: 'install-plugin' }
@@ -106,6 +127,9 @@ export function App({
     url: null,
     received: false,
   })
+  const [cliKey, setCliKey] = useState<CliKeyResult | null>(null)
+  const [projectKey, setProjectKey] = useState<ExistingKeyResult | null>(null)
+  const [preferredSdk, setPreferredSdk] = useState<Sdk | null>(null)
   const [pasteValue, setPasteValue] = useState('')
   const [pasteError, setPasteError] = useState<string | null>(null)
   const [installLines, setInstallLines] = useState<string[]>([])
@@ -116,9 +140,7 @@ export function App({
   const [mode, setMode] = useState<BuildMode | null>(null)
   const [selections, setSelections] = useState<string[]>([])
 
-  // The plan record (written to .seam/onboarding.json before the agent runs);
-  // the done handler rewrites it with the run result.
-  const planRef = useRef<Omit<OnboardingRecord, 'schema_version'> | null>(null)
+  const planRef = useRef<ProjectPlan | null>(null)
 
   // Kept in sync with `messages` so the exit handler can hand the full
   // transcript to index.tsx to reprint after leaving the alt screen.
@@ -135,8 +157,6 @@ export function App({
     setPhase({ t: 'done' })
   }
 
-  // Compose the goal from the chosen mode + building blocks + optional note,
-  // persist the plan to .seam/onboarding.json, then hand off to the agent.
   const startIntegration = (noteInput: string): void => {
     const note = noteInput.trim().length > 0 ? noteInput.trim() : null
     const effectiveMode: BuildMode = mode ?? 'full_api'
@@ -148,8 +168,7 @@ export function App({
       note,
       framework: analysis?.signals.framework ?? null,
     })
-    const record: Omit<OnboardingRecord, 'schema_version'> = {
-      created_at: new Date().toISOString(),
+    const plan: ProjectPlan = {
       mode: effectiveMode,
       selections: effectiveSelections,
       note,
@@ -163,16 +182,9 @@ export function App({
         recommendation_source: analysis?.recommendation.source ?? 'heuristic',
       },
     }
-    planRef.current = record
-    try {
-      writeOnboardingRecord(root, record)
-      addMessage({
-        tone: 'info',
-        text: 'Saved your plan to .seam/onboarding.json',
-      })
-    } catch {
-      // Writing the record is best-effort; proceed with the integration.
-    }
+    planRef.current = plan
+    recordPlan(root, plan).catch(() => {})
+    addMessage({ tone: 'info', text: 'Saved your plan' })
     setPhase({ t: 'integrate', goal })
   }
 
@@ -189,20 +201,11 @@ export function App({
       ])
     } else {
       setAgentLines([])
-      if (planRef.current != null) {
-        try {
-          writeOnboardingRecord(root, {
-            ...planRef.current,
-            result: {
-              ok: event.ok,
-              files_summary: event.summary.trim().slice(0, 4000),
-              cost_usd: event.cost_usd,
-            },
-          })
-        } catch {
-          // Recording the result is best-effort; never block finishing.
-        }
-      }
+      recordResult(root, {
+        ok: event.ok,
+        files_summary: event.summary.trim().slice(0, 4000),
+        cost_usd: event.cost_usd,
+      }).catch(() => {})
       addMessage(
         event.ok
           ? {
@@ -228,6 +231,55 @@ export function App({
     }
   }
 
+  const useCliKey = (found: CliKeyResult): void => {
+    try {
+      saveVerifiedKey(root, found.api_key)
+      addMessage({
+        tone: 'ok',
+        text: `Using your Seam CLI login · workspace ${found.workspace.name} · saved to .env`,
+      })
+    } catch {
+      addMessage({
+        tone: 'warn',
+        text: "Couldn't write .env — set SEAM_API_KEY there yourself.",
+      })
+    }
+    settleOn(found.workspace, found.api_key, 'cli', null)
+  }
+
+  const useProjectKey = (found: ExistingKeyResult): void => {
+    try {
+      if (found.source === 'environment') {
+        saveVerifiedKey(root, found.api_key)
+      } else {
+        ensureProjectEnvConventions(root)
+      }
+    } catch {
+      // The project keeps working with the key it already has.
+    }
+    addMessage({
+      tone: 'ok',
+      text: `Using the key from ${found.source} · workspace ${found.workspace.name}`,
+    })
+    settleOn(found.workspace, found.api_key, 'project', found.source)
+  }
+
+  const settleOn = (
+    settledWorkspace: SeamWorkspace,
+    apiKey: string,
+    source: 'project' | 'cli' | 'browser' | 'pasted',
+    location: string | null,
+  ): void => {
+    setWorkspace(settledWorkspace)
+    saveConnection(root, {
+      workspace: settledWorkspace,
+      api_key: apiKey,
+      source,
+      location,
+    }).catch(() => {})
+    advanceAfterAuth()
+  }
+
   // Once a workspace is known, choose SDK (or skip if detected) then install.
   const advanceAfterAuth = (): void => {
     const detected = projectRef.current.detected_sdk
@@ -240,23 +292,54 @@ export function App({
     }
   }
 
-  // init: reuse an existing key if valid, else ask how to connect.
   useEffect(() => {
     if (phase.t !== 'init') return
     let cancelled = false
     const run = async (): Promise<void> => {
+      const previous = await readProjectRecord(root)
       const existing = await findVerifiedExistingKey(root)
       if (cancelled) return
-      if (existing != null) {
-        setWorkspace(existing.workspace)
-        addMessage({
-          tone: 'ok',
-          text: `Using existing key from ${existing.source} · workspace ${existing.workspace.name}`,
+      setProjectKey(existing)
+
+      const auth = getAuth()
+      const cliResult =
+        existing?.api_key === auth.apiKey ? null : await findVerifiedCliKey()
+      if (cancelled) return
+      setCliKey(cliResult)
+
+      const recorded = previous?.connection ?? null
+
+      if (recorded != null && existing != null) {
+        const changes = compareConnection(recorded, {
+          endpoint: auth.endpoint,
+          workspace: existing.workspace,
+          api_key: existing.api_key,
         })
-        advanceAfterAuth()
-      } else {
-        setPhase({ t: 'method' })
+        if (changes.length === 0) {
+          addMessage({
+            tone: 'ok',
+            text: `Set up here before · workspace ${existing.workspace.name} · key from ${existing.source}`,
+          })
+          settleOn(
+            existing.workspace,
+            existing.api_key,
+            'project',
+            existing.source,
+          )
+          return
+        }
+        setPhase({ t: 'drift', changes })
+        return
       }
+
+      if (recorded != null) {
+        addMessage({
+          tone: 'warn',
+          text: `Set up here on ${formatDate(previous?.created_at ?? '')}, but this project has no SEAM_API_KEY the wizard can verify now.`,
+        })
+      }
+
+      setPhase({ t: 'method' })
     }
     run().catch((error: unknown) => {
       if (cancelled) return
@@ -499,7 +582,7 @@ export function App({
         project: projectRef.current,
         onboarding: currentSession.onboarding,
         inference: {
-          base_url: SEAM_INFERENCE_BASE_URL,
+          base_url: getInferenceBaseUrl(),
           token: currentSession.token,
         },
       })
@@ -565,7 +648,7 @@ export function App({
           workspace_name: workspace?.name ?? 'your workspace',
           goal,
           inference: {
-            base_url: SEAM_INFERENCE_BASE_URL,
+            base_url: getInferenceBaseUrl(),
             token: session.token,
           },
           framework: analysis?.signals.framework ?? null,
@@ -599,6 +682,18 @@ export function App({
     })
     return () => controller.abort()
   }, [phase.t])
+
+  useEffect(() => {
+    let cancelled = false
+    readPreferredSdk()
+      .then((sdk) => {
+        if (!cancelled) setPreferredSdk(sdk)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // keep the full-screen layout sized to the terminal
   useEffect(() => {
@@ -651,6 +746,19 @@ export function App({
     </Box>
   )
 
+  function onConnectSelected(value: string): void {
+    if (value === 'project' && projectKey != null) {
+      useProjectKey(projectKey)
+    } else if (value === 'cli' && cliKey != null) {
+      useCliKey(cliKey)
+    } else if (value === 'paste') {
+      attemptRef.current = 0
+      setPhase({ t: 'paste' })
+    } else {
+      setPhase({ t: 'browser' })
+    }
+  }
+
   function renderActive(): ReactElement | null {
     switch (phase.t) {
       case 'init':
@@ -659,24 +767,9 @@ export function App({
         return (
           <Prompt title='How do you want to connect your Seam account?'>
             <SelectInput
-              items={[
-                {
-                  label:
-                    'Continue in your browser  (create a key in the Console)',
-                  value: 'browser',
-                },
-                {
-                  label: 'Paste an API key  (if you already have one)',
-                  value: 'paste',
-                },
-              ]}
+              items={connectItems(projectKey, cliKey)}
               onSelect={(item) => {
-                if (item.value === 'paste') {
-                  attemptRef.current = 0
-                  setPhase({ t: 'paste' })
-                } else {
-                  setPhase({ t: 'browser' })
-                }
+                onConnectSelected(item.value)
               }}
             />
           </Prompt>
@@ -722,24 +815,71 @@ export function App({
         )
       case 'verify-paste':
         return <Pending label='Verifying your key with Seam…' />
-      case 'sdk':
+      case 'drift':
+        return (
+          <Prompt title='This project was set up with something else:'>
+            {phase.changes.map((change) => (
+              <Text key={change.what} color='yellow'>
+                {`  ${describeChange(change)}`}
+              </Text>
+            ))}
+            <SelectInput
+              items={[
+                {
+                  label: projectKeyLabel(
+                    projectKey,
+                    'Update this project to use',
+                  ),
+                  value: 'project',
+                },
+                {
+                  label: 'Change what this project connects with…',
+                  value: 'again',
+                },
+                { label: 'Quit, and leave everything as it is', value: 'quit' },
+              ]}
+              onSelect={(item) => {
+                if (item.value === 'project' && projectKey != null) {
+                  useProjectKey(projectKey)
+                } else if (item.value === 'again') {
+                  setPhase({ t: 'method' })
+                } else {
+                  addMessage({
+                    tone: 'plain',
+                    text: 'Nothing changed. Run seam wizard again once your environment is how you want it.',
+                  })
+                  setPhase({ t: 'done' })
+                }
+              }}
+            />
+          </Prompt>
+        )
+      case 'sdk': {
+        const javascriptItem = {
+          label: 'JavaScript / TypeScript',
+          value: 'javascript',
+        }
+        const pythonItem = { label: 'Python', value: 'python' }
         return (
           <Prompt title='Which SDK are you using?'>
             <SelectInput
-              items={[
-                { label: 'JavaScript / TypeScript', value: 'javascript' },
-                { label: 'Python', value: 'python' },
-              ]}
+              items={
+                preferredSdk === 'python'
+                  ? [pythonItem, javascriptItem]
+                  : [javascriptItem, pythonItem]
+              }
               onSelect={(item) => {
                 const chosen: Sdk =
                   item.value === 'python' ? 'python' : 'javascript'
                 setSdk(chosen)
+                writePreferredSdk(chosen).catch(() => {})
                 addMessage({ tone: 'info', text: `SDK: ${chosen}` })
                 setPhase({ t: 'install-sdk' })
               }}
             />
           </Prompt>
         )
+      }
       case 'install-sdk':
         return (
           <Box flexDirection='column'>
@@ -880,6 +1020,51 @@ export function App({
   }
 }
 
+function formatDate(timestamp: string): string {
+  const date = new Date(timestamp)
+  return Number.isNaN(date.getTime())
+    ? timestamp
+    : date.toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      })
+}
+
+function connectItems(
+  projectKey: ExistingKeyResult | null,
+  cliKey: CliKeyResult | null,
+): Array<{ label: string; value: string }> {
+  return [
+    ...(projectKey != null
+      ? [{ label: projectKeyLabel(projectKey, 'Use'), value: 'project' }]
+      : []),
+    ...(cliKey != null
+      ? [
+          {
+            label: `Use your Seam CLI login  (workspace ${cliKey.workspace.name})`,
+            value: 'cli',
+          },
+        ]
+      : []),
+    {
+      label: 'Continue in your browser  (create a key in the Console)',
+      value: 'browser',
+    },
+    { label: 'Paste an API key  (if you already have one)', value: 'paste' },
+  ]
+}
+
+function projectKeyLabel(
+  projectKey: ExistingKeyResult | null,
+  verb: string,
+): string {
+  if (projectKey == null) return `${verb} what is in your environment`
+  return `${verb} the SEAM_API_KEY in ${projectKey.source}  (workspace ${projectKey.workspace.name})`
+}
+
+// Said only of what the login actually is: a token the wizard cannot hand to
+// a project, or one it could not verify.
 function pushNextSteps(
   addMessage: (message: Msg) => void,
   sdk: Sdk | null,
@@ -888,7 +1073,7 @@ function pushNextSteps(
   const envHint =
     sdk === 'python'
       ? "Make sure SEAM_API_KEY is exported (it's in .env)."
-      : 'Add .env to .gitignore — it holds your API key.'
+      : 'Your key is in .env (git ignored); .env.example tells the rest of your team what to set.'
   addMessage({ tone: 'plain', text: '' })
   addMessage({ tone: 'ok', text: `You're set up in ${workspaceName}` })
   addMessage({ tone: 'plain', text: 'Next steps:' })

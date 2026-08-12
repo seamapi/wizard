@@ -26,8 +26,8 @@ export interface WizardOptions {
    * The project root the wizard sets up.
    *
    * Defaults to `process.cwd()`, which is the project the developer ran the
-   * command in. The wizard reads and writes files here, e.g., `.env` and
-   * `.seam/onboarding.json`.
+   * command in. The wizard reads and writes the project's own files here,
+   * e.g., `.env`, `.env.example`, and `.gitignore`.
    */
   cwd?: string
 

@@ -2,7 +2,12 @@
 // avoid pulling in the full SDK just for a health check — a single fetch keeps
 // the wizard's install footprint tiny.
 
-const SEAM_API_BASE = 'https://connect.getseam.com'
+import { getAuth } from 'lib/adapter.js'
+
+// Whichever server the host is pointed at.
+export function getSeamApiBaseUrl(): string {
+  return getAuth().endpoint.replace(/\/+$/, '')
+}
 
 export interface SeamWorkspace {
   workspace_id: string
@@ -19,7 +24,7 @@ export async function getWorkspaceForApiKey(
 ): Promise<SeamWorkspace> {
   let response: Response
   try {
-    response = await fetch(`${SEAM_API_BASE}/workspaces/get`, {
+    response = await fetch(`${getSeamApiBaseUrl()}/workspaces/get`, {
       method: 'POST',
       headers: {
         authorization: `Bearer ${apiKey}`,
@@ -57,7 +62,9 @@ export function looksLikeSeamApiKey(value: string): boolean {
 
 // Base URL for Seam-hosted inference. The embedded agent's SDK appends
 // /v1/messages; the exchange endpoint below lives at /session.
-export const SEAM_INFERENCE_BASE_URL = `${SEAM_API_BASE}/internal/wizard_inference`
+export function getInferenceBaseUrl(): string {
+  return `${getSeamApiBaseUrl()}/internal/wizard_inference`
+}
 
 // The Console-collected onboarding answers Seam returns alongside the token, so
 // the wizard can pre-fill its plan instead of re-asking (null if none recorded).
@@ -84,7 +91,7 @@ export async function exchangeWizardInferenceToken(
 ): Promise<WizardInferenceSession> {
   let response: Response
   try {
-    response = await fetch(`${SEAM_INFERENCE_BASE_URL}/session`, {
+    response = await fetch(`${getInferenceBaseUrl()}/session`, {
       method: 'POST',
       headers: {
         authorization: `Bearer ${apiKey}`,
