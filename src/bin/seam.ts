@@ -3,7 +3,7 @@
 // This entry exists for local development of the wizard only: it is not
 // compiled or published, and the package exposes no bin. It runs the Seam
 // CLI from devDependencies with its '@seamapi/wizard' import pointed at this
-// checkout, so 'npm run wizard' runs the wizard as 'seam wizard'.
+// checkout, so 'npm run seam' is the CLI with this wizard mounted in it.
 
 import { registerHooks } from 'node:module'
 
@@ -16,14 +16,13 @@ registerHooks({
       : next(specifier, context),
 })
 
-// '--cwd <path>' is an option of this entry, pointing the wizard at a
-// scratch project instead of this repository. Every other argument is passed
-// through untouched.
+// '--cwd <path>' is an option of this entry, for running against a scratch
+// project instead of this repository. Every other argument is passed through.
 const argv = process.argv.slice(2)
 const cwdIndex = argv.indexOf('--cwd')
 const cwd = cwdIndex === -1 ? undefined : argv.splice(cwdIndex, 2)[1]
 if (cwd != null) process.chdir(cwd)
 
-process.argv = [process.argv[0] ?? 'node', 'seam', 'wizard', ...argv]
+process.argv = [process.argv[0] ?? 'node', 'seam', ...argv]
 
 await import('@seamapi/cli/cli')
