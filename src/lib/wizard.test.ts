@@ -1,5 +1,6 @@
-import { beforeEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
+import { createMemoryHost, getAuth, resetHost } from './host.js'
 import { renderApp } from './render.js'
 import seamapiWizardVersion from './version.js'
 import wizard from './wizard.js'
@@ -9,6 +10,8 @@ vi.mock('./render.js', () => ({ renderApp: vi.fn() }))
 beforeEach(() => {
   vi.mocked(renderApp).mockClear()
 })
+
+afterEach(resetHost)
 
 const captureOutput = async (
   options: Parameters<typeof wizard>[0],
@@ -69,4 +72,43 @@ test('wizard: runs the app in the working directory by default', async () => {
 test('wizard: runs the app in the given directory', async () => {
   await wizard({ argv: [], cwd: '/tmp/example-project' })
   expect(renderApp).toHaveBeenCalledWith({ root: '/tmp/example-project' })
+})
+
+test('wizard: runs on the host it is given', async () => {
+  const host = createMemoryHost({
+    auth: {
+      server: 'https://connect.example.com',
+      serverSource: 'cli',
+      apiKey: 'seam_apikey1_token',
+      workspaceId: 'workspace-1',
+      loginKind: 'api_key',
+    },
+  })
+
+  await wizard({ argv: [], host })
+
+  expect(getAuth()).toMatchObject({ server: 'https://connect.example.com' })
+})
+
+test('wizard: runs logged out when it is given no host', async () => {
+  await wizard({ argv: [] })
+
+  expect(getAuth().loginKind).toBe('none')
+})
+
+test('wizard: asks no host anything to display usage', async () => {
+  const getAuthSpy = vi.fn(async () => ({
+    server: 'https://connect.example.com',
+    serverSource: 'cli' as const,
+    apiKey: null,
+    workspaceId: null,
+    loginKind: 'none' as const,
+  }))
+
+  await captureOutput({
+    argv: ['--help'],
+    host: { ...createMemoryHost(), getAuth: getAuthSpy },
+  })
+
+  expect(getAuthSpy).not.toHaveBeenCalled()
 })

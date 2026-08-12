@@ -1,5 +1,6 @@
 import parseArgs from 'minimist'
 
+import { loadAuth, setHost, type WizardHost } from './host.js'
 import { renderApp } from './render.js'
 import seamapiWizardVersion from './version.js'
 
@@ -29,6 +30,15 @@ export interface WizardOptions {
    * `.seam/onboarding.json`.
    */
   cwd?: string
+
+  /**
+   * Everything the wizard cannot decide for itself: the developer's Seam
+   * login, and where what it records is kept.
+   *
+   * The Seam CLI passes its own. Without one the wizard runs against an
+   * in-memory host: the run works, and nothing outlives it.
+   */
+  host?: WizardHost
 }
 
 /**
@@ -43,6 +53,7 @@ export interface WizardOptions {
  */
 const wizard = async (options: WizardOptions = {}): Promise<void> => {
   const { argv = [], commandName = 'wizard', cwd = process.cwd() } = options
+  if (options.host != null) setHost(options.host)
 
   const args = parseArgs([...argv], {
     boolean: ['help', 'version'],
@@ -58,6 +69,8 @@ const wizard = async (options: WizardOptions = {}): Promise<void> => {
     write(seamapiWizardVersion)
     return
   }
+
+  await loadAuth()
 
   await renderApp({ root: cwd })
 }
