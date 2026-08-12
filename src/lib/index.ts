@@ -1,5 +1,4 @@
 export {
-  createMemoryAdapter,
   type StorageAdapter,
   type WizardAdapter,
   type WizardAuth,
