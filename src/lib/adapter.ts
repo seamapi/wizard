@@ -1,36 +1,31 @@
 export interface WizardAuth {
   endpoint: string
-  endpointSource: 'env' | 'cli' | 'default'
   apiKey: string | null
   workspaceId: string | null
-  authMethod:
-    'api_key' | 'personal_access_token' | 'console_session_token' | 'none'
 }
 
-export interface WizardValues {
+export interface StorageAdapter {
   get: (key: string) => Promise<unknown>
   set: (key: string, value: unknown) => Promise<void>
 }
 
 export interface WizardAdapter {
   getAuth: () => Promise<WizardAuth>
-  config: WizardValues
-  state: WizardValues
+  config: StorageAdapter
+  state: StorageAdapter
 }
 
 export const defaultEndpoint = 'https://connect.getseam.com'
 
 const loggedOut: WizardAuth = {
   endpoint: defaultEndpoint,
-  endpointSource: 'default',
   apiKey: null,
   workspaceId: null,
-  authMethod: 'none',
 }
 
-export const createMemoryValues = (
+export const createMemoryStorage = (
   initialValues: Record<string, unknown> = {},
-): WizardValues => {
+): StorageAdapter => {
   const values = new Map(Object.entries(initialValues))
   return {
     get: async (key) => values.get(key),
@@ -50,8 +45,8 @@ export const createMemoryAdapter = ({
   state?: Record<string, unknown>
 } = {}): WizardAdapter => ({
   getAuth: async () => auth,
-  config: createMemoryValues(config),
-  state: createMemoryValues(state),
+  config: createMemoryStorage(config),
+  state: createMemoryStorage(state),
 })
 
 let adapter: WizardAdapter = createMemoryAdapter()

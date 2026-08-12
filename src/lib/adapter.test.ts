@@ -15,19 +15,15 @@ afterEach(resetAdapter)
 
 const apiKeyLogin: WizardAuth = {
   endpoint: 'https://connect.example.com',
-  endpointSource: 'cli',
   apiKey: 'seam_apikey1_token',
   workspaceId: 'workspace-1',
-  authMethod: 'api_key',
 }
 
 test('adapter: runs logged out against an in-memory adapter by default', async () => {
   expect(await loadAuth()).toEqual({
     endpoint: defaultEndpoint,
-    endpointSource: 'default',
     apiKey: null,
     workspaceId: null,
-    authMethod: 'none',
   })
 })
 
@@ -65,7 +61,7 @@ test('adapter: asks the adapter who the developer is once', async () => {
 test('adapter: is logged out until the auth has been loaded', () => {
   setAdapter(createMemoryAdapter({ auth: apiKeyLogin }))
 
-  expect(getAuth().authMethod).toBe('none')
+  expect(getAuth().apiKey).toBeNull()
   expect(getAuth().endpoint).toBe(defaultEndpoint)
 })
 
@@ -75,7 +71,7 @@ test('adapter: forgets the auth loaded for a previous adapter', async () => {
 
   setAdapter(createMemoryAdapter())
 
-  expect(await loadAuth()).toMatchObject({ authMethod: 'none' })
+  expect(await loadAuth()).toMatchObject({ apiKey: null })
 })
 
 test('adapter: starts from the values it was created with', async () => {

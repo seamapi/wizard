@@ -78,10 +78,8 @@ test('wizard: runs on the adapter it is given', async () => {
   const adapter = createMemoryAdapter({
     auth: {
       endpoint: 'https://connect.example.com',
-      endpointSource: 'cli',
       apiKey: 'seam_apikey1_token',
       workspaceId: 'workspace-1',
-      authMethod: 'api_key',
     },
   })
 
@@ -93,16 +91,14 @@ test('wizard: runs on the adapter it is given', async () => {
 test('wizard: runs logged out when it is given no adapter', async () => {
   await wizard({ argv: [] })
 
-  expect(getAuth().authMethod).toBe('none')
+  expect(getAuth().apiKey).toBeNull()
 })
 
 test('wizard: asks no adapter anything to display usage', async () => {
   const getAuthSpy = vi.fn(async () => ({
     endpoint: 'https://connect.example.com',
-    endpointSource: 'cli' as const,
     apiKey: null,
     workspaceId: null,
-    authMethod: 'none' as const,
   }))
 
   await captureOutput({
