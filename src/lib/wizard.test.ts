@@ -1,5 +1,6 @@
-import { beforeEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
+import { createMemoryAdapter, getAuth, resetAdapter } from './adapter.js'
 import { renderApp } from './render.js'
 import seamapiWizardVersion from './version.js'
 import wizard from './wizard.js'
@@ -9,6 +10,8 @@ vi.mock('./render.js', () => ({ renderApp: vi.fn() }))
 beforeEach(() => {
   vi.mocked(renderApp).mockClear()
 })
+
+afterEach(resetAdapter)
 
 const captureOutput = async (
   options: Parameters<typeof wizard>[0],
@@ -69,4 +72,39 @@ test('wizard: runs the app in the working directory by default', async () => {
 test('wizard: runs the app in the given directory', async () => {
   await wizard({ argv: [], cwd: '/tmp/example-project' })
   expect(renderApp).toHaveBeenCalledWith({ root: '/tmp/example-project' })
+})
+
+test('wizard: runs on the adapter it is given', async () => {
+  const adapter = createMemoryAdapter({
+    auth: {
+      endpoint: 'https://connect.example.com',
+      apiKey: 'seam_apikey1_token',
+      workspaceId: 'workspace-1',
+    },
+  })
+
+  await wizard({ argv: [], adapter })
+
+  expect(getAuth()).toMatchObject({ endpoint: 'https://connect.example.com' })
+})
+
+test('wizard: runs logged out when it is given no adapter', async () => {
+  await wizard({ argv: [] })
+
+  expect(getAuth().apiKey).toBeNull()
+})
+
+test('wizard: asks no adapter anything to display usage', async () => {
+  const getAuthSpy = vi.fn(async () => ({
+    endpoint: 'https://connect.example.com',
+    apiKey: null,
+    workspaceId: null,
+  }))
+
+  await captureOutput({
+    argv: ['--help'],
+    adapter: { ...createMemoryAdapter(), getAuth: getAuthSpy },
+  })
+
+  expect(getAuthSpy).not.toHaveBeenCalled()
 })

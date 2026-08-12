@@ -1,5 +1,6 @@
 import parseArgs from 'minimist'
 
+import { loadAuth, setAdapter, type WizardAdapter } from './adapter.js'
 import { renderApp } from './render.js'
 import seamapiWizardVersion from './version.js'
 
@@ -29,6 +30,8 @@ export interface WizardOptions {
    * `.seam/onboarding.json`.
    */
   cwd?: string
+
+  adapter?: WizardAdapter
 }
 
 /**
@@ -43,6 +46,7 @@ export interface WizardOptions {
  */
 const wizard = async (options: WizardOptions = {}): Promise<void> => {
   const { argv = [], commandName = 'wizard', cwd = process.cwd() } = options
+  if (options.adapter != null) setAdapter(options.adapter)
 
   const args = parseArgs([...argv], {
     boolean: ['help', 'version'],
@@ -58,6 +62,8 @@ const wizard = async (options: WizardOptions = {}): Promise<void> => {
     write(seamapiWizardVersion)
     return
   }
+
+  await loadAuth()
 
   await renderApp({ root: cwd })
 }
