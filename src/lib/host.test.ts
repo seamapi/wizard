@@ -18,7 +18,7 @@ const apiKeyLogin: WizardAuth = {
   serverSource: 'cli',
   apiKey: 'seam_apikey1_token',
   workspaceId: 'workspace-1',
-  loginKind: 'api_key',
+  authMethod: 'api_key',
 }
 
 test('host: runs logged out against an in-memory host by default', async () => {
@@ -27,20 +27,20 @@ test('host: runs logged out against an in-memory host by default', async () => {
     serverSource: 'default',
     apiKey: null,
     workspaceId: null,
-    loginKind: 'none',
+    authMethod: 'none',
   })
 })
 
 test('host: keeps values for the run and nothing beyond it', async () => {
-  await getHost().settings.set('sdk', 'python')
-  expect(await getHost().settings.get('sdk')).toBe('python')
+  await getHost().config.set('sdk', 'python')
+  expect(await getHost().config.get('sdk')).toBe('python')
 
   resetHost()
-  expect(await getHost().settings.get('sdk')).toBeUndefined()
+  expect(await getHost().config.get('sdk')).toBeUndefined()
 })
 
-test('host: keeps settings apart from state', async () => {
-  await getHost().settings.set('sdk', 'python')
+test('host: keeps config apart from state', async () => {
+  await getHost().config.set('sdk', 'python')
 
   expect(await getHost().state.get('sdk')).toBeUndefined()
 })
@@ -65,7 +65,7 @@ test('host: asks the host who the developer is once', async () => {
 test('host: is logged out until the auth has been loaded', () => {
   setHost(createMemoryHost({ auth: apiKeyLogin }))
 
-  expect(getAuth().loginKind).toBe('none')
+  expect(getAuth().authMethod).toBe('none')
   expect(getAuth().server).toBe(defaultServer)
 })
 
@@ -75,18 +75,18 @@ test('host: forgets the auth loaded for a previous host', async () => {
 
   setHost(createMemoryHost())
 
-  expect(await loadAuth()).toMatchObject({ loginKind: 'none' })
+  expect(await loadAuth()).toMatchObject({ authMethod: 'none' })
 })
 
 test('host: starts from the values it was created with', async () => {
   setHost(
     createMemoryHost({
-      settings: { sdk: 'javascript' },
+      config: { sdk: 'javascript' },
       state: { 'projects.app-1234567890': { goal: 'Set up Seam.' } },
     }),
   )
 
-  expect(await getHost().settings.get('sdk')).toBe('javascript')
+  expect(await getHost().config.get('sdk')).toBe('javascript')
   expect(await getHost().state.get('projects.app-1234567890')).toEqual({
     goal: 'Set up Seam.',
   })

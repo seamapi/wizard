@@ -14,7 +14,7 @@ export interface WizardAuth {
   apiKey: string | null
   /** The workspace the login is pointed at, when it names one. */
   workspaceId: string | null
-  loginKind:
+  authMethod:
     'api_key' | 'personal_access_token' | 'console_session_token' | 'none'
 }
 
@@ -27,7 +27,7 @@ export interface WizardValues {
 export interface WizardHost {
   getAuth: () => Promise<WizardAuth>
   /** Preferences the developer chose, e.g., the SDK. */
-  settings: WizardValues
+  config: WizardValues
   /** What the wizard recorded about the projects it set up. */
   state: WizardValues
 }
@@ -39,7 +39,7 @@ const loggedOut: WizardAuth = {
   serverSource: 'default',
   apiKey: null,
   workspaceId: null,
-  loginKind: 'none',
+  authMethod: 'none',
 }
 
 export const createMemoryValues = (
@@ -57,15 +57,15 @@ export const createMemoryValues = (
 /** The default host: the run works, nothing outlives it. */
 export const createMemoryHost = ({
   auth = loggedOut,
-  settings = {},
+  config = {},
   state = {},
 }: {
   auth?: WizardAuth
-  settings?: Record<string, unknown>
+  config?: Record<string, unknown>
   state?: Record<string, unknown>
 } = {}): WizardHost => ({
   getAuth: async () => auth,
-  settings: createMemoryValues(settings),
+  config: createMemoryValues(config),
   state: createMemoryValues(state),
 })
 

@@ -81,7 +81,7 @@ test('wizard: runs on the host it is given', async () => {
       serverSource: 'cli',
       apiKey: 'seam_apikey1_token',
       workspaceId: 'workspace-1',
-      loginKind: 'api_key',
+      authMethod: 'api_key',
     },
   })
 
@@ -93,7 +93,7 @@ test('wizard: runs on the host it is given', async () => {
 test('wizard: runs logged out when it is given no host', async () => {
   await wizard({ argv: [] })
 
-  expect(getAuth().loginKind).toBe('none')
+  expect(getAuth().authMethod).toBe('none')
 })
 
 test('wizard: asks no host anything to display usage', async () => {
@@ -102,7 +102,7 @@ test('wizard: asks no host anything to display usage', async () => {
     serverSource: 'cli' as const,
     apiKey: null,
     workspaceId: null,
-    loginKind: 'none' as const,
+    authMethod: 'none' as const,
   }))
 
   await captureOutput({

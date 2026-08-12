@@ -114,10 +114,10 @@ const host: WizardHost = {
     serverSource: 'default',
     apiKey: null,
     workspaceId: null,
-    loginKind: 'none',
+    authMethod: 'none',
   }),
   // Preferences the developer chose, e.g., the SDK.
-  settings: { get: async (key) => ..., set: async (key, value) => ... },
+  config: { get: async (key) => ..., set: async (key, value) => ... },
   // What the wizard recorded about the projects it set up.
   state: { get: async (key) => ..., set: async (key, value) => ... },
 }
