@@ -31,13 +31,6 @@ export interface WizardOptions {
    */
   cwd?: string
 
-  /**
-   * Everything the wizard cannot decide for itself: the developer's Seam
-   * login, and where what it records is kept.
-   *
-   * The Seam CLI passes its own. Without one the wizard runs against an
-   * in-memory adapter: the run works, and nothing outlives it.
-   */
   adapter?: WizardAdapter
 }
 

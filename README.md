@@ -98,41 +98,6 @@ await wizard({
 })
 ```
 
-### The adapter
-
-Pass `adapter` to answer for the two things the wizard cannot decide for
-itself: the developer's Seam login, and where what it records is kept.
-
-```ts
-import wizard, { type WizardAdapter } from '@seamapi/wizard'
-
-const adapter: WizardAdapter = {
-  // The developer's Seam login. `apiKey` is a workspace API key the project
-  // can use as SEAM_API_KEY, and is null unless the login has one.
-  getAuth: async () => ({
-    endpoint: 'https://connect.getseam.com',
-    endpointSource: 'default',
-    apiKey: null,
-    workspaceId: null,
-    authMethod: 'none',
-  }),
-  // Preferences the developer chose, e.g., the SDK.
-  config: { get: async (key) => ..., set: async (key, value) => ... },
-  // What the wizard recorded about the projects it set up.
-  state: { get: async (key) => ..., set: async (key, value) => ... },
-}
-
-await wizard({ argv, commandName: 'seam wizard', adapter })
-```
-
-The wizard picks the keys, the adapter picks the files. Values are plain
-JSON and hold no secrets. `getAuth` is asked once per run, and
-`endpointSource` says whether the endpoint came from the environment, so an
-override can be mentioned rather than quietly used.
-
-Without an adapter the wizard runs against an in-memory one: every step
-works, and nothing outlives the run.
-
 ### Environment variables
 
 - `SEAM_API_KEY`: An existing Seam API key.
