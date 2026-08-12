@@ -99,8 +99,11 @@ export function composeGoal(args: {
       '(2) Open a reservation directly: push the reservation to Seam ' +
       '(customers.pushData), then create a portal deep-linked to that ' +
       'reservation (landing_page or deep_link) that a reservation page links ' +
-      'to. Regenerate the portal on every visit since the session token is ' +
-      `short-lived. Wire it into ${target}'s conventions, load SEAM_API_KEY ` +
+      'to. Keep Seam in sync with the app: call customers.pushData from the ' +
+      'booking create and update handlers (and customers.deleteData on ' +
+      'cancellation) so new and changed reservations reach the portal — do not ' +
+      'push only when a reservation page is opened. Regenerate the portal on ' +
+      `every visit since the session token is short-lived. Wire it into ${target}'s conventions, load SEAM_API_KEY ` +
       "from the existing .env, model the structure on Seam's Customer Portal " +
       'example app for this framework, and add a short runnable example.' +
       noteSuffix
