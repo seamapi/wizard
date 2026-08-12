@@ -6,10 +6,10 @@
  */
 
 export interface WizardAuth {
-  /** The Seam API server to talk to. */
-  server: string
-  /** Whether the server was overridden, chosen in the CLI, or the default. */
-  serverSource: 'env' | 'cli' | 'default'
+  /** The Seam API endpoint to talk to. */
+  endpoint: string
+  /** Whether the endpoint was overridden, chosen in the CLI, or the default. */
+  endpointSource: 'env' | 'cli' | 'default'
   /** A workspace API key the project can use as SEAM_API_KEY, if there is one. */
   apiKey: string | null
   /** The workspace the login is pointed at, when it names one. */
@@ -18,13 +18,13 @@ export interface WizardAuth {
     'api_key' | 'personal_access_token' | 'console_session_token' | 'none'
 }
 
-/** Values the host keeps for the wizard. The keys are the wizard's own. */
+/** Values the adapter keeps for the wizard. The keys are the wizard's own. */
 export interface WizardValues {
   get: (key: string) => Promise<unknown>
   set: (key: string, value: unknown) => Promise<void>
 }
 
-export interface WizardHost {
+export interface WizardAdapter {
   getAuth: () => Promise<WizardAuth>
   /** Preferences the developer chose, e.g., the SDK. */
   config: WizardValues
@@ -32,11 +32,11 @@ export interface WizardHost {
   state: WizardValues
 }
 
-export const defaultServer = 'https://connect.getseam.com'
+export const defaultEndpoint = 'https://connect.getseam.com'
 
 const loggedOut: WizardAuth = {
-  server: defaultServer,
-  serverSource: 'default',
+  endpoint: defaultEndpoint,
+  endpointSource: 'default',
   apiKey: null,
   workspaceId: null,
   authMethod: 'none',
@@ -54,8 +54,8 @@ export const createMemoryValues = (
   }
 }
 
-/** The default host: the run works, nothing outlives it. */
-export const createMemoryHost = ({
+/** The default adapter: the run works, nothing outlives it. */
+export const createMemoryAdapter = ({
   auth = loggedOut,
   config = {},
   state = {},
@@ -63,31 +63,31 @@ export const createMemoryHost = ({
   auth?: WizardAuth
   config?: Record<string, unknown>
   state?: Record<string, unknown>
-} = {}): WizardHost => ({
+} = {}): WizardAdapter => ({
   getAuth: async () => auth,
   config: createMemoryValues(config),
   state: createMemoryValues(state),
 })
 
-let host: WizardHost = createMemoryHost()
+let adapter: WizardAdapter = createMemoryAdapter()
 let auth: WizardAuth | null = null
 
-export const getHost = (): WizardHost => host
+export const getAdapter = (): WizardAdapter => adapter
 
-/** Mount the wizard on a host, e.g., the Seam CLI, or a fake from a test. */
-export const setHost = (nextHost: WizardHost): void => {
-  host = nextHost
+/** Mount the wizard on an adapter, e.g., the Seam CLI, or a test's own. */
+export const setAdapter = (nextAdapter: WizardAdapter): void => {
+  adapter = nextAdapter
   auth = null
 }
 
-export const resetHost = (): void => {
-  host = createMemoryHost()
+export const resetAdapter = (): void => {
+  adapter = createMemoryAdapter()
   auth = null
 }
 
-/** Ask the host who the developer is, once for the run. */
+/** Ask the adapter who the developer is, once for the run. */
 export const loadAuth = async (): Promise<WizardAuth> => {
-  auth ??= await host.getAuth()
+  auth ??= await adapter.getAuth()
   return auth
 }
 

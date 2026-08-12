@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
-import { createMemoryHost, getAuth, resetHost } from './host.js'
+import { createMemoryAdapter, getAuth, resetAdapter } from './adapter.js'
 import { renderApp } from './render.js'
 import seamapiWizardVersion from './version.js'
 import wizard from './wizard.js'
@@ -11,7 +11,7 @@ beforeEach(() => {
   vi.mocked(renderApp).mockClear()
 })
 
-afterEach(resetHost)
+afterEach(resetAdapter)
 
 const captureOutput = async (
   options: Parameters<typeof wizard>[0],
@@ -74,32 +74,32 @@ test('wizard: runs the app in the given directory', async () => {
   expect(renderApp).toHaveBeenCalledWith({ root: '/tmp/example-project' })
 })
 
-test('wizard: runs on the host it is given', async () => {
-  const host = createMemoryHost({
+test('wizard: runs on the adapter it is given', async () => {
+  const adapter = createMemoryAdapter({
     auth: {
-      server: 'https://connect.example.com',
-      serverSource: 'cli',
+      endpoint: 'https://connect.example.com',
+      endpointSource: 'cli',
       apiKey: 'seam_apikey1_token',
       workspaceId: 'workspace-1',
       authMethod: 'api_key',
     },
   })
 
-  await wizard({ argv: [], host })
+  await wizard({ argv: [], adapter })
 
-  expect(getAuth()).toMatchObject({ server: 'https://connect.example.com' })
+  expect(getAuth()).toMatchObject({ endpoint: 'https://connect.example.com' })
 })
 
-test('wizard: runs logged out when it is given no host', async () => {
+test('wizard: runs logged out when it is given no adapter', async () => {
   await wizard({ argv: [] })
 
   expect(getAuth().authMethod).toBe('none')
 })
 
-test('wizard: asks no host anything to display usage', async () => {
+test('wizard: asks no adapter anything to display usage', async () => {
   const getAuthSpy = vi.fn(async () => ({
-    server: 'https://connect.example.com',
-    serverSource: 'cli' as const,
+    endpoint: 'https://connect.example.com',
+    endpointSource: 'cli' as const,
     apiKey: null,
     workspaceId: null,
     authMethod: 'none' as const,
@@ -107,7 +107,7 @@ test('wizard: asks no host anything to display usage', async () => {
 
   await captureOutput({
     argv: ['--help'],
-    host: { ...createMemoryHost(), getAuth: getAuthSpy },
+    adapter: { ...createMemoryAdapter(), getAuth: getAuthSpy },
   })
 
   expect(getAuthSpy).not.toHaveBeenCalled()

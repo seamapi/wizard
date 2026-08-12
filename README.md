@@ -98,20 +98,20 @@ await wizard({
 })
 ```
 
-### The host
+### The adapter
 
-Pass `host` to answer for the two things the wizard cannot decide for
+Pass `adapter` to answer for the two things the wizard cannot decide for
 itself: the developer's Seam login, and where what it records is kept.
 
 ```ts
-import wizard, { type WizardHost } from '@seamapi/wizard'
+import wizard, { type WizardAdapter } from '@seamapi/wizard'
 
-const host: WizardHost = {
+const adapter: WizardAdapter = {
   // The developer's Seam login. `apiKey` is a workspace API key the project
   // can use as SEAM_API_KEY, and is null unless the login has one.
   getAuth: async () => ({
-    server: 'https://connect.getseam.com',
-    serverSource: 'default',
+    endpoint: 'https://connect.getseam.com',
+    endpointSource: 'default',
     apiKey: null,
     workspaceId: null,
     authMethod: 'none',
@@ -122,16 +122,16 @@ const host: WizardHost = {
   state: { get: async (key) => ..., set: async (key, value) => ... },
 }
 
-await wizard({ argv, commandName: 'seam wizard', host })
+await wizard({ argv, commandName: 'seam wizard', adapter })
 ```
 
-The wizard picks the keys, the host picks the files. Values are plain JSON
-and hold no secrets. `getAuth` is asked once per run, and `serverSource`
-says whether the server came from the environment, so an override can be
-mentioned rather than quietly used.
+The wizard picks the keys, the adapter picks the files. Values are plain
+JSON and hold no secrets. `getAuth` is asked once per run, and
+`endpointSource` says whether the endpoint came from the environment, so an
+override can be mentioned rather than quietly used.
 
-Without a host the wizard runs against an in-memory one: every step works,
-and nothing outlives the run.
+Without an adapter the wizard runs against an in-memory one: every step
+works, and nothing outlives the run.
 
 ### Environment variables
 

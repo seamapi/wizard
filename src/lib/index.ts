@@ -1,7 +1,7 @@
 export {
-  createMemoryHost,
+  createMemoryAdapter,
+  type WizardAdapter,
   type WizardAuth,
-  type WizardHost,
   type WizardValues,
-} from './host.js'
+} from './adapter.js'
 export { default, type WizardOptions } from './wizard.js'
