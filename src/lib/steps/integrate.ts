@@ -61,11 +61,10 @@ export async function runIntegration(args: RunIntegrationArgs): Promise<void> {
       prompt: goal,
       options: {
         cwd: root,
-        // Model depends on the chosen mode (see modelForMode): the customer-portal
-        // path is a small, high-value surface, so it runs on Opus 4.8; the broader
-        // full-API path runs on cheap Haiku 4.5. medium effort trims the thinking
-        // spend, and maxBudgetUsd is a hard per-run dollar ceiling.
-        model: modelForMode(mode),
+        // Run the integration agent on Opus 4.8 for both modes. medium effort
+        // trims the thinking spend, and maxBudgetUsd is a hard per-run dollar
+        // ceiling.
+        model: 'claude-opus-4-8',
         effort: 'medium',
         maxBudgetUsd: 100,
         env: buildAgentEnv(inference),
@@ -127,16 +126,6 @@ export async function runIntegration(args: RunIntegrationArgs): Promise<void> {
   } finally {
     signal.removeEventListener('abort', forwardAbort)
   }
-}
-
-// The embedded agent's model depends on the mode the developer chose. The
-// customer-portal integration is small but high-value (embedded portal, deep
-// links), so it runs on Opus 4.8; the broader full-API path runs on cheap Haiku
-// 4.5. Defaults to Haiku when the mode is unknown.
-function modelForMode(
-  mode: 'full_api' | 'customer_portal' | undefined,
-): string {
-  return mode === 'customer_portal' ? 'claude-opus-4-8' : 'claude-haiku-4-5'
 }
 
 function buildSystemAppend(
