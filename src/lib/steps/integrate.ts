@@ -67,7 +67,7 @@ export async function runIntegration(args: RunIntegrationArgs): Promise<void> {
         // spend, and maxBudgetUsd is a hard per-run dollar ceiling.
         model: modelForMode(mode),
         effort: 'medium',
-        maxBudgetUsd: 10,
+        maxBudgetUsd: 100,
         env: buildAgentEnv(inference),
         allowedTools: ALLOWED_TOOLS,
         // Auto-apply file edits so the agent runs uninterrupted; the developer
