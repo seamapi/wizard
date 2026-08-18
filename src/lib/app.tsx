@@ -986,11 +986,18 @@ export function App({
                       : 'Full API'
                   }`,
                 })
-                setPhase(
-                  chosen === 'customer_portal'
-                    ? { t: 'note' }
-                    : { t: 'checklist' },
-                )
+                if (chosen === 'customer_portal') {
+                  setPhase({ t: 'note' })
+                } else {
+                  // Full API always starts with the three Core blocks checked;
+                  // keep any extra blocks the analysis recommended.
+                  const coreIds = CORE_BLOCKS.map((block) => block.id)
+                  setSelections((previous) => [
+                    ...coreIds,
+                    ...previous.filter((id) => !coreIds.includes(id)),
+                  ])
+                  setPhase({ t: 'checklist' })
+                }
               }}
             />
           </Prompt>
