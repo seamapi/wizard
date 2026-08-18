@@ -135,6 +135,8 @@ export function App({
   const [installLines, setInstallLines] = useState<string[]>([])
   const [noteValue, setNoteValue] = useState('')
   const [agentLines, setAgentLines] = useState<string[]>([])
+  const [integrateElapsedSec, setIntegrateElapsedSec] = useState(0)
+  const [integrateIdleSec, setIntegrateIdleSec] = useState(0)
   const [session, setSession] = useState<WizardInferenceSession | null>(null)
   const [analysis, setAnalysis] = useState<ProjectAnalysis | null>(null)
   const [mode, setMode] = useState<BuildMode | null>(null)
@@ -190,11 +192,13 @@ export function App({
 
   const handleIntegrateEvent = (event: IntegrateEvent): void => {
     if (event.kind === 'text') {
+      setIntegrateIdleSec(0)
       setAgentLines((previous) => [
         ...previous.slice(-5),
         truncate(event.text, 100),
       ])
     } else if (event.kind === 'tool') {
+      setIntegrateIdleSec(0)
       setAgentLines((previous) => [
         ...previous.slice(-5),
         formatTool(event.name, event.detail),
@@ -660,11 +664,17 @@ export function App({
         })
       } catch (error) {
         if (!controller.signal.aborted) {
+          const rawMessage =
+            error instanceof Error ? error.message : 'unknown error'
+          const isOverloaded = /overload|\b529\b|\b503\b/i.test(rawMessage)
+          // The wizard presents the model as "Seam AI"; the underlying provider
+          // may change, so keep its name out of user-facing copy.
+          const message = rawMessage.replace(/Claude Code|Claude/g, 'Seam AI')
           addMessage({
             tone: 'warn',
-            text: `Couldn't run the integration agent: ${
-              error instanceof Error ? error.message : 'unknown error'
-            }`,
+            text: isOverloaded
+              ? 'Seam AI is overloaded right now — wait a minute and re-run the wizard.'
+              : `Couldn't run the integration agent: ${message}`,
           })
         }
       }
@@ -681,6 +691,22 @@ export function App({
       })
     })
     return () => controller.abort()
+  }, [phase.t])
+
+  // Tick an elapsed/idle clock during the integrate phase. Opus can think for a
+  // while between tool calls, so a live clock is what tells the developer the
+  // agent is working rather than frozen; idle time drives the "still working" hint.
+  useEffect(() => {
+    if (phase.t !== 'integrate') {
+      setIntegrateElapsedSec(0)
+      setIntegrateIdleSec(0)
+      return
+    }
+    const interval = setInterval(() => {
+      setIntegrateElapsedSec((seconds) => seconds + 1)
+      setIntegrateIdleSec((seconds) => seconds + 1)
+    }, 1000)
+    return () => clearInterval(interval)
   }, [phase.t])
 
   useEffect(() => {
@@ -1004,7 +1030,18 @@ export function App({
       case 'integrate':
         return (
           <Box flexDirection='column'>
-            <Pending label='Writing your Seam integration…' />
+            <Pending
+              label={`Writing your Seam integration… ${formatElapsed(
+                integrateElapsedSec,
+              )}`}
+            />
+            {integrateIdleSec >= 20 && (
+              <Text color='yellow'>
+                {' '}
+                Still working — large integrations take a few minutes, and Seam
+                AI may be busy. Press Ctrl-C to stop.
+              </Text>
+            )}
             {agentLines.map((line, index) => (
               <Text key={index} color='gray'>
                 {' '}
@@ -1018,6 +1055,12 @@ export function App({
         return null
     }
   }
+}
+
+function formatElapsed(totalSeconds: number): string {
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${minutes}:${String(seconds).padStart(2, '0')}`
 }
 
 function formatDate(timestamp: string): string {
