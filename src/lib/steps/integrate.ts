@@ -91,7 +91,7 @@ export async function runIntegration(args: RunIntegrationArgs): Promise<void> {
           preset: 'claude_code',
           append: buildSystemAppend(sdk, workspaceName, framework, mode),
         },
-        maxTurns: 40,
+        maxTurns: 100,
         abortController,
       },
     })) {
