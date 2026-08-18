@@ -117,8 +117,18 @@ export function composeGoal(args: {
     .join('\n')
 
   return (
-    'Set up a Seam integration that controls everything through the Seam API. ' +
-    `Implement the following, wired into ${target}'s conventions:\n${hints}\n` +
+    'Set up a Seam integration that controls access through the Seam API, ' +
+    `wired into ${target}'s conventions and into the app's EXISTING models, ` +
+    'flows, and pages — extend them, do not add standalone Seam-only pages. ' +
+    `Implement the following:\n${hints}\n` +
+    'Integrate the way a real product would rather than as a parallel demo: if ' +
+    'the app has a reservation or booking flow, create an Access Grant when a ' +
+    'reservation is created (its guest as a User Identity, scoped to the ' +
+    "reservation's space, over the stay window) and revoke it on cancellation, " +
+    'by hooking the existing create/update/delete handlers — not a separate ' +
+    "page; map connected devices onto the app's spaces/units; and surface the " +
+    'resulting access (such as the PIN code) on the existing reservation view. ' +
+    'Model the Seam API usage on the Full API example app for this framework. ' +
     'Load SEAM_API_KEY from the existing .env, keep changes minimal and ' +
     'idiomatic, and add a short runnable example.' +
     noteSuffix
