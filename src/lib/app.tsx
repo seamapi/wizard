@@ -1,4 +1,4 @@
-import { Box, Text, useApp, useStdout } from 'ink'
+import { Box, Text, useApp, useInput, useStdin, useStdout } from 'ink'
 import SelectInput from 'ink-select-input'
 import Spinner from 'ink-spinner'
 import TextInput from 'ink-text-input'
@@ -11,7 +11,17 @@ import {
 } from 'react'
 
 import { getAuth } from './adapter.js'
-import { CheckboxList } from './components/checkbox-list.js'
+import { AnalyzeScreen } from './screens/analyze.js'
+import { DoneScreen, type IntegrationOutcome } from './screens/done.js'
+import { Header } from './screens/header.js'
+import {
+  IntegrateProgress,
+  type StepState,
+} from './screens/integrate-progress.js'
+import { IntegrationModeScreen } from './screens/integration-mode.js'
+import { NoteScreen } from './screens/note.js'
+import { SetupProgress } from './screens/setup-progress.js'
+import { WelcomeScreen } from './screens/welcome.js'
 import {
   analyzeProject,
   type ProjectAnalysis,
@@ -27,9 +37,7 @@ import {
 import {
   buildIntegrationSteps,
   type BuildMode,
-  COMMON_BLOCKS,
   composeGoal,
-  CORE_BLOCKS,
   type IntegrationStep,
 } from './steps/build-plan.js'
 import { connectViaWeb } from './steps/connect-web.js'
@@ -81,66 +89,8 @@ interface Msg {
   text: string
 }
 
-// The integration runs one step per selected building block; the Tasks panel
-// shows each step's live state.
-type StepStatus = 'pending' | 'active' | 'done' | 'failed'
-interface StepState {
-  id: string
-  label: string
-  status: StepStatus
-}
-
-const STEP_ICON: Record<StepStatus, string> = {
-  pending: '☐',
-  active: '▶',
-  done: '✓',
-  failed: '✗',
-}
-const STEP_COLOR: Record<StepStatus, string> = {
-  pending: 'gray',
-  active: 'cyan',
-  done: 'green',
-  failed: 'red',
-}
-
-// Educational cards shown in the Learn column beside the Tasks panel while the
-// agent works. Rotates every 8s off the elapsed clock, so no extra timer.
-const LEARN_CARDS: Array<{ title: string; lines: string[] }> = [
-  {
-    title: 'How Seam works',
-    lines: [
-      'An Access Grant gives a',
-      'person access to a space',
-      'or device for a window of',
-      'time.',
-      '',
-      'Seam issues the method:',
-      'PIN · mobile key · card',
-    ],
-  },
-  {
-    title: 'The building blocks',
-    lines: [
-      'Connected account',
-      '  → its Devices',
-      'Space groups devices',
-      'User identity = a person',
-      'Access grant links them',
-    ],
-  },
-  {
-    title: 'While this runs',
-    lines: [
-      'Docs  docs.seam.co',
-      'MCP   seam-docs, in your',
-      '      AI editor',
-      'API   connect.getseam.com',
-    ],
-  },
-]
-const LEARN_CARD_SECONDS = 8
-
 type Phase =
+  | { t: 'welcome' }
   | { t: 'init' }
   | { t: 'method' }
   | { t: 'browser' }
@@ -153,7 +103,6 @@ type Phase =
   | { t: 'offer-integrate' }
   | { t: 'analyze' }
   | { t: 'integrate-mode' }
-  | { t: 'checklist' }
   | { t: 'note' }
   | { t: 'integrate'; steps: IntegrationStep[] }
   | { t: 'done' }
@@ -161,13 +110,16 @@ type Phase =
 
 export function App({
   root,
+  showCost = false,
   onExit,
 }: {
   root: string
+  showCost?: boolean
   onExit?: (lines: string[]) => void
 }): ReactElement {
   const { exit } = useApp()
   const { stdout } = useStdout()
+  const { isRawModeSupported } = useStdin()
   const projectRef = useRef<ProjectInfo>(detectProject(root))
   const attemptRef = useRef(0)
 
@@ -177,9 +129,21 @@ export function App({
   })
 
   const [messages, setMessages] = useState<Msg[]>([])
-  const [phase, setPhase] = useState<Phase>({ t: 'init' })
+  const [phase, setPhase] = useState<Phase>({ t: 'welcome' })
   const [sdk, setSdk] = useState<Sdk | null>(null)
   const [workspace, setWorkspace] = useState<SeamWorkspace | null>(null)
+
+  // The intro splash advances into the wizard on any keypress. Where raw mode
+  // isn't available (non-TTY) skip straight to init so the run isn't stuck.
+  useInput(
+    () => {
+      if (phase.t === 'welcome') setPhase({ t: 'init' })
+    },
+    { isActive: isRawModeSupported && phase.t === 'welcome' },
+  )
+  useEffect(() => {
+    if (phase.t === 'welcome' && !isRawModeSupported) setPhase({ t: 'init' })
+  }, [phase.t, isRawModeSupported])
 
   const [browser, setBrowser] = useState<{
     url: string | null
@@ -207,9 +171,16 @@ export function App({
   const [session, setSession] = useState<WizardInferenceSession | null>(null)
   const [analysis, setAnalysis] = useState<ProjectAnalysis | null>(null)
   const [mode, setMode] = useState<BuildMode | null>(null)
-  const [selections, setSelections] = useState<string[]>([])
+  // How the integration went, captured when it finishes so the final screen can
+  // report it. Null once done means the wizard finished without running the agent.
+  const [finalResult, setFinalResult] = useState<IntegrationOutcome | null>(
+    null,
+  )
 
   const planRef = useRef<ProjectPlan | null>(null)
+  // Mirrors integrateElapsedSec so the done event can read the final elapsed
+  // time without a stale closure (the tick updates state, not this handler).
+  const integrateElapsedRef = useRef(0)
 
   // Kept in sync with `messages` so the exit handler can hand the full
   // transcript to index.tsx to reprint after leaving the alt screen.
@@ -229,22 +200,15 @@ export function App({
   const startIntegration = (noteInput: string): void => {
     const note = noteInput.trim().length > 0 ? noteInput.trim() : null
     const effectiveMode: BuildMode = mode ?? 'full_api'
-    const effectiveSelections =
-      effectiveMode === 'customer_portal' ? [] : selections
-    const goal = composeGoal({
-      mode: effectiveMode,
-      selections: effectiveSelections,
-      note,
-      framework: analysis?.signals.framework ?? null,
-    })
+    const framework = analysis?.signals.framework ?? null
+    const goal = composeGoal({ mode: effectiveMode, note, framework })
     const plan: ProjectPlan = {
       mode: effectiveMode,
-      selections: effectiveSelections,
       note,
       goal,
       analysis: {
         sdk: analysis?.signals.sdk ?? null,
-        framework: analysis?.signals.framework ?? null,
+        framework,
         app_type_guess: analysis?.recommendation.app_type_guess ?? null,
         seam_already_setup: analysis?.signals.seam_already_setup ?? false,
         used_onboarding: analysis?.used_onboarding ?? false,
@@ -256,9 +220,8 @@ export function App({
     addMessage({ tone: 'info', text: 'Saved your plan' })
     const steps = buildIntegrationSteps({
       mode: effectiveMode,
-      selections: effectiveSelections,
       note,
-      framework: analysis?.signals.framework ?? null,
+      framework,
     })
     setPhase({ t: 'integrate', steps })
   }
@@ -317,6 +280,13 @@ export function App({
       const doneCount = event.steps.filter(
         (step) => step.status === 'done',
       ).length
+      setFinalResult({
+        ok: event.ok,
+        costUsd: event.cost_usd ?? null,
+        elapsedSec: integrateElapsedRef.current,
+        doneSteps: doneCount,
+        totalSteps: event.steps.length,
+      })
       const stepSuffix =
         event.steps.length > 1
           ? ` — ${doneCount}/${event.steps.length} steps completed`
@@ -704,7 +674,6 @@ export function App({
       if (cancelled) return
       setAnalysis(result)
       setMode(result.recommendation.mode)
-      setSelections(result.recommendation.selections)
 
       const detail = [
         result.signals.framework ?? result.signals.sdk,
@@ -822,9 +791,11 @@ export function App({
       setStepStates([])
       return
     }
+    integrateElapsedRef.current = 0
     const interval = setInterval(() => {
       setIntegrateElapsedSec((seconds) => seconds + 1)
       setIntegrateIdleSec((seconds) => seconds + 1)
+      integrateElapsedRef.current += 1
     }, 1000)
     return () => clearInterval(interval)
   }, [phase.t])
@@ -852,28 +823,166 @@ export function App({
     }
   }, [stdout])
 
-  // exit when finished
+  const finish = (): void => {
+    onExit?.(messagesRef.current.map(formatMessageLine))
+    exit()
+  }
+
+  // exit when finished. `done` shows a final screen and waits for a keypress
+  // (see the useInput below); it only auto-exits where raw mode is unavailable
+  // (non-TTY) so a headless run never hangs. `error` always exits.
   useEffect(() => {
     if (phase.t !== 'done' && phase.t !== 'error') return
     if (phase.t === 'error') {
       addMessage({ tone: 'warn', text: phase.message })
       process.exitCode = 1
     }
+    if (phase.t === 'done' && isRawModeSupported) return
     // Hand the transcript back so index.tsx can reprint it once the alt screen
     // is torn down (its contents are otherwise discarded). Small delay lets the
     // final addMessage above flush into messagesRef.
-    const id = setTimeout(() => {
-      onExit?.(messagesRef.current.map(formatMessageLine))
-      exit()
-    }, 40)
+    const id = setTimeout(finish, 40)
     return () => clearTimeout(id)
   }, [phase.t])
+
+  // On the final screen, any key exits.
+  useInput(finish, { isActive: isRawModeSupported && phase.t === 'done' })
 
   // Full-screen: a header, the transcript (bounded to what fits), then the
   // active step. The outer box is sized to the terminal so it fills the alt
   // screen; older transcript lines scroll off the top and are reprinted on exit.
   const transcriptCapacity = Math.max(1, dimensions.rows - 8)
   const visibleMessages = messages.slice(-transcriptCapacity)
+
+  // Every step that isn't the transcript is its own full-screen screen: the
+  // header on top, the screen's content below. Sized to the terminal so it
+  // fills the alt screen.
+  const fullScreen = (content: ReactNode): ReactElement => (
+    <Box
+      flexDirection='column'
+      height={dimensions.rows}
+      width={dimensions.columns}
+      paddingX={1}
+      paddingY={1}
+    >
+      <Header />
+      {content}
+    </Box>
+  )
+
+  // The intro splash takes over the whole screen (no header/transcript chrome).
+  if (phase.t === 'welcome') return <WelcomeScreen />
+
+  // The integration runs on its own full screen — the Tasks + tips panel is the
+  // whole view, not a footer under the transcript.
+  if (phase.t === 'integrate') {
+    return fullScreen(
+      <IntegrateProgress
+        stepStates={stepStates}
+        currentStep={currentStep}
+        elapsedSec={integrateElapsedSec}
+        idleSec={integrateIdleSec}
+        agentLines={agentLines}
+        columns={dimensions.columns}
+      />,
+    )
+  }
+
+  // Installing the SDK + plugin, styled like the Tasks screen: a setup checklist
+  // with the running step spinning.
+  if (phase.t === 'install-sdk' || phase.t === 'install-plugin') {
+    const installingSdk = phase.t === 'install-sdk'
+    const setupSteps: StepState[] = [
+      {
+        id: 'sdk',
+        label: 'Install the Seam SDK',
+        status: installingSdk ? 'active' : 'done',
+      },
+      {
+        id: 'plugin',
+        label: 'Install the Seam plugin',
+        status: installingSdk ? 'pending' : 'active',
+      },
+    ]
+    return fullScreen(
+      <SetupProgress
+        steps={setupSteps}
+        label={
+          installingSdk
+            ? 'Installing the Seam SDK…'
+            : 'Installing the Seam plugin…'
+        }
+        outputLines={installLines}
+      />,
+    )
+  }
+
+  if (phase.t === 'analyze') return fullScreen(<AnalyzeScreen />)
+
+  if (phase.t === 'integrate-mode') {
+    const recommended: BuildMode = mode ?? 'full_api'
+    const portalItem = {
+      label: 'Customer Portal — Seam hosts the UI (you call ~2 endpoints)',
+      value: 'customer_portal',
+    }
+    const apiItem = {
+      label: 'Full API control — you build the UI, wire up the API',
+      value: 'full_api',
+    }
+    // Setup (SDK + plugin) is already done by this point, so offer to stop here
+    // and integrate by hand.
+    const continueItem = {
+      label: 'Continue on my own — setup is done, I’ll build it',
+      value: 'continue_on_own',
+    }
+    return fullScreen(
+      <IntegrationModeScreen
+        items={[
+          ...(recommended === 'customer_portal'
+            ? [portalItem, apiItem]
+            : [apiItem, portalItem]),
+          continueItem,
+        ]}
+        rationale={analysis?.recommendation.rationale ?? undefined}
+        columns={dimensions.columns}
+        onSelect={(item) => {
+          if (item.value === 'continue_on_own') {
+            finishWithNextSteps()
+            return
+          }
+          const chosen: BuildMode =
+            item.value === 'customer_portal' ? 'customer_portal' : 'full_api'
+          setMode(chosen)
+          addMessage({
+            tone: 'info',
+            text: `Mode: ${chosen === 'customer_portal' ? 'Customer Portal' : 'Full API'}`,
+          })
+          setPhase({ t: 'note' })
+        }}
+      />,
+    )
+  }
+
+  if (phase.t === 'note') {
+    return fullScreen(
+      <NoteScreen
+        value={noteValue}
+        onChange={setNoteValue}
+        onSubmit={(value) => startIntegration(value)}
+      />,
+    )
+  }
+
+  // The final screen is a centered celebration — no header/transcript chrome.
+  if (phase.t === 'done') {
+    return (
+      <DoneScreen
+        workspaceName={workspace?.name ?? 'your workspace'}
+        outcome={finalResult}
+        showCost={showCost}
+      />
+    )
+  }
 
   return (
     <Box
@@ -1026,30 +1135,6 @@ export function App({
           </Prompt>
         )
       }
-      case 'install-sdk':
-        return (
-          <Box flexDirection='column'>
-            <Pending label='Installing the Seam SDK…' />
-            {installLines.map((line, index) => (
-              <Text key={index} color='gray'>
-                {' '}
-                {line}
-              </Text>
-            ))}
-          </Box>
-        )
-      case 'install-plugin':
-        return (
-          <Box flexDirection='column'>
-            <Pending label='Installing the Seam plugin…' />
-            {installLines.map((line, index) => (
-              <Text key={index} color='gray'>
-                {' '}
-                {line}
-              </Text>
-            ))}
-          </Box>
-        )
       case 'offer-integrate':
         return (
           <Prompt title='Want the wizard to write your Seam integration now?'>
@@ -1068,166 +1153,18 @@ export function App({
             />
           </Prompt>
         )
+      case 'welcome':
+      case 'install-sdk':
+      case 'install-plugin':
       case 'analyze':
-        return <Pending label='Analyzing your project…' />
-      case 'integrate-mode': {
-        const recommended: BuildMode = mode ?? 'full_api'
-        const portalItem = {
-          label: 'Customer Portal — Seam hosts the UI (you call ~2 endpoints)',
-          value: 'customer_portal',
-        }
-        const apiItem = {
-          label: 'Full API control — you build the UI, wire up the API',
-          value: 'full_api',
-        }
-        const items =
-          recommended === 'customer_portal'
-            ? [portalItem, apiItem]
-            : [apiItem, portalItem]
-        return (
-          <Prompt title='How do you want to integrate Seam?'>
-            {analysis?.recommendation.rationale != null &&
-              analysis.recommendation.rationale.length > 0 && (
-                <Text color='gray'>{`  ${analysis.recommendation.rationale}`}</Text>
-              )}
-            <SelectInput
-              items={items}
-              onSelect={(item) => {
-                const chosen: BuildMode =
-                  item.value === 'customer_portal'
-                    ? 'customer_portal'
-                    : 'full_api'
-                setMode(chosen)
-                addMessage({
-                  tone: 'info',
-                  text: `Mode: ${
-                    chosen === 'customer_portal'
-                      ? 'Customer Portal'
-                      : 'Full API'
-                  }`,
-                })
-                setPhase(
-                  chosen === 'customer_portal'
-                    ? { t: 'note' }
-                    : { t: 'checklist' },
-                )
-              }}
-            />
-          </Prompt>
-        )
-      }
-      case 'checklist':
-        return (
-          <Prompt title='What should the integration include? (space to toggle)'>
-            <CheckboxList
-              items={[...CORE_BLOCKS, ...COMMON_BLOCKS].map((block) => ({
-                id: block.id,
-                label: block.label,
-                group: block.group,
-              }))}
-              initial_selected={selections}
-              onSubmit={(chosen) => {
-                setSelections(chosen)
-                setPhase({ t: 'note' })
-              }}
-            />
-          </Prompt>
-        )
+      case 'integrate-mode':
       case 'note':
-        return (
-          <Prompt title='Anything else to add? (optional — Enter to skip)'>
-            <Box>
-              <Text color='cyan'>{'› '}</Text>
-              <TextInput
-                value={noteValue}
-                onChange={setNoteValue}
-                placeholder='e.g. wire it into the checkout page'
-                onSubmit={(value) => startIntegration(value)}
-              />
-            </Box>
-          </Prompt>
-        )
-      case 'integrate': {
-        // Two-column Learn | Tasks only when the terminal is wide enough;
-        // otherwise Tasks alone, so a narrow window never wraps awkwardly.
-        const showLearn = dimensions.columns >= 90
-        const learnCard =
-          LEARN_CARDS[
-            Math.floor(integrateElapsedSec / LEARN_CARD_SECONDS) %
-              LEARN_CARDS.length
-          ]
-        return (
-          <Box flexDirection='column'>
-            {stepStates.length > 0 && (
-              <Box flexDirection='row' marginBottom={1}>
-                {showLearn && learnCard != null && (
-                  <Box flexDirection='column' width={30} marginRight={3}>
-                    <Text bold color='cyan'>
-                      {' '}
-                      {learnCard.title}
-                    </Text>
-                    {learnCard.lines.map((line, index) => (
-                      <Text key={index} color='gray'>
-                        {' '}
-                        {line}
-                      </Text>
-                    ))}
-                  </Box>
-                )}
-                <Box flexDirection='column' flexGrow={1}>
-                  <Text bold> Tasks</Text>
-                  {stepStates.map((step) => (
-                    <Text key={step.id} color={STEP_COLOR[step.status]}>
-                      {'  '}
-                      {STEP_ICON[step.status]} {step.label}
-                    </Text>
-                  ))}
-                  <Text color='gray'>
-                    {'  '}Progress:{' '}
-                    {stepStates.filter((step) => step.status === 'done').length}
-                    /{stepStates.length} completed
-                  </Text>
-                </Box>
-              </Box>
-            )}
-            <Pending
-              label={
-                currentStep == null
-                  ? `Writing your Seam integration… ${formatElapsed(
-                      integrateElapsedSec,
-                    )}`
-                  : `${currentStep.label} (${currentStep.index + 1}/${
-                      currentStep.total
-                    }) · ${formatElapsed(integrateElapsedSec)}`
-              }
-            />
-            {integrateIdleSec >= 20 && (
-              <Text color='yellow'>
-                {' '}
-                Still working — large integrations take a few minutes, and Seam
-                AI may be busy. Press Ctrl-C to stop.
-              </Text>
-            )}
-            {agentLines.map((line, index) => (
-              <Text key={index} color='gray'>
-                {' '}
-                {line}
-              </Text>
-            ))}
-          </Box>
-        )
-      }
+      case 'integrate':
       case 'done':
       case 'error':
         return null
     }
   }
-}
-
-function formatElapsed(totalSeconds: number): string {
-  const minutes = Math.floor(totalSeconds / 60)
-  const seconds = totalSeconds % 60
-  return `${minutes}:${String(seconds).padStart(2, '0')}`
 }
 
 function formatDate(timestamp: string): string {
@@ -1319,16 +1256,6 @@ function formatTool(name: string, detail: string): string {
                 ? 'docs'
                 : name
   return detail.length > 0 ? `${verb} ${truncate(detail, 60)}` : verb
-}
-
-function Header(): ReactElement {
-  return (
-    <Box marginBottom={1}>
-      <Text backgroundColor='cyan' color='black' bold>
-        {' Seam setup wizard '}
-      </Text>
-    </Box>
-  )
 }
 
 // Plain-text rendering of a message, matching MessageLine's symbols — used to

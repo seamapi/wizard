@@ -18,7 +18,6 @@ export interface ProjectConnection {
 
 export interface ProjectPlan {
   mode: BuildMode
-  selections: string[]
   note: string | null
   goal: string
   analysis: {

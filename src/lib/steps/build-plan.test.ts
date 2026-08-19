@@ -1,38 +1,35 @@
 import { expect, test } from 'vitest'
 
-import { blockById, buildIntegrationSteps, composeGoal } from './build-plan.js'
-
-const hintFor = (id: string): string => {
-  const block = blockById(id)
-  if (block == null) throw new Error(`Missing build block: ${id}`)
-  return block.agent_hint
-}
+import {
+  blockById,
+  buildIntegrationSteps,
+  composeGoal,
+  INTEGRATION_BLOCKS,
+} from './build-plan.js'
 
 const hintLines = (goal: string): string[] =>
   goal.split('\n').filter((line) => line.startsWith('- '))
 
-test('blockById: finds a core block', () => {
-  expect(blockById('access_grants')).toMatchObject({
-    id: 'access_grants',
-    group: 'Core',
-  })
-})
-
-test('blockById: finds a common block', () => {
-  expect(blockById('webhooks')).toMatchObject({
-    id: 'webhooks',
-    group: 'Common',
-  })
+test('blockById: finds an integration block', () => {
+  expect(blockById('access_grants')).toMatchObject({ id: 'access_grants' })
 })
 
 test('blockById: returns undefined for an unknown id', () => {
   expect(blockById('not_a_block')).toBeUndefined()
 })
 
+test('INTEGRATION_BLOCKS: the fixed set is connect, grants, users, spaces', () => {
+  expect(INTEGRATION_BLOCKS.map((block) => block.id)).toEqual([
+    'connect_device',
+    'access_grants',
+    'user_identities',
+    'spaces',
+  ])
+})
+
 test('composeGoal: describes the Customer Portal for customer_portal', () => {
   const goal = composeGoal({
     mode: 'customer_portal',
-    selections: [],
     note: null,
     framework: null,
   })
@@ -40,47 +37,27 @@ test('composeGoal: describes the Customer Portal for customer_portal', () => {
   expect(goal).toContain('Customer Portal')
 })
 
-test('composeGoal: ignores selections for customer_portal', () => {
+test('composeGoal: customer_portal lists no building-block hints', () => {
   const goal = composeGoal({
     mode: 'customer_portal',
-    selections: ['access_codes', 'webhooks'],
     note: null,
     framework: null,
   })
 
-  expect(goal).not.toContain(hintFor('access_codes'))
   expect(hintLines(goal)).toEqual([])
 })
 
-test('composeGoal: includes the agent hint of each selected block for full_api', () => {
-  const goal = composeGoal({
-    mode: 'full_api',
-    selections: ['connect_device', 'webhooks'],
-    note: null,
-    framework: null,
-  })
+test('composeGoal: full_api includes every fixed block hint', () => {
+  const goal = composeGoal({ mode: 'full_api', note: null, framework: null })
 
-  expect(hintLines(goal)).toEqual([
-    `- ${hintFor('connect_device')}`,
-    `- ${hintFor('webhooks')}`,
-  ])
-})
-
-test('composeGoal: skips unknown block ids for full_api', () => {
-  const goal = composeGoal({
-    mode: 'full_api',
-    selections: ['not_a_block', 'access_grants'],
-    note: null,
-    framework: null,
-  })
-
-  expect(hintLines(goal)).toEqual([`- ${hintFor('access_grants')}`])
+  expect(hintLines(goal)).toEqual(
+    INTEGRATION_BLOCKS.map((block) => `- ${block.agent_hint}`),
+  )
 })
 
 test('composeGoal: names the framework when given', () => {
   const goal = composeGoal({
     mode: 'full_api',
-    selections: ['access_grants'],
     note: null,
     framework: 'Next.js',
   })
@@ -89,12 +66,7 @@ test('composeGoal: names the framework when given', () => {
 })
 
 test('composeGoal: falls back to a generic phrase without a framework', () => {
-  const goal = composeGoal({
-    mode: 'full_api',
-    selections: ['access_grants'],
-    note: null,
-    framework: null,
-  })
+  const goal = composeGoal({ mode: 'full_api', note: null, framework: null })
 
   expect(goal).toContain("the project's conventions")
 })
@@ -102,7 +74,6 @@ test('composeGoal: falls back to a generic phrase without a framework', () => {
 test('composeGoal: names the framework for customer_portal too', () => {
   const goal = composeGoal({
     mode: 'customer_portal',
-    selections: [],
     note: null,
     framework: 'Django',
   })
@@ -113,7 +84,6 @@ test('composeGoal: names the framework for customer_portal too', () => {
 test('composeGoal: appends the developer note', () => {
   const goal = composeGoal({
     mode: 'full_api',
-    selections: ['access_grants'],
     note: '  Use the existing service layer.  ',
     framework: null,
   })
@@ -124,12 +94,7 @@ test('composeGoal: appends the developer note', () => {
 })
 
 test('composeGoal: omits the note when it is null', () => {
-  const goal = composeGoal({
-    mode: 'full_api',
-    selections: ['access_grants'],
-    note: null,
-    framework: null,
-  })
+  const goal = composeGoal({ mode: 'full_api', note: null, framework: null })
 
   expect(goal).not.toContain('Additional context from the developer')
 })
@@ -137,7 +102,6 @@ test('composeGoal: omits the note when it is null', () => {
 test('composeGoal: omits the note when it is only whitespace', () => {
   const goal = composeGoal({
     mode: 'customer_portal',
-    selections: [],
     note: '   \n  ',
     framework: null,
   })
@@ -148,7 +112,6 @@ test('composeGoal: omits the note when it is only whitespace', () => {
 test('buildIntegrationSteps: customer_portal is a single step', () => {
   const steps = buildIntegrationSteps({
     mode: 'customer_portal',
-    selections: [],
     note: null,
     framework: 'Next.js',
   })
@@ -158,54 +121,41 @@ test('buildIntegrationSteps: customer_portal is a single step', () => {
   expect(steps[0]?.goal).toContain('Customer Portal')
 })
 
-test('buildIntegrationSteps: full_api orders steps canonically, not by selection order', () => {
+test('buildIntegrationSteps: full_api is one step per fixed block, in order', () => {
   const steps = buildIntegrationSteps({
     mode: 'full_api',
-    selections: ['webhooks', 'connect_device', 'access_grants'],
     note: null,
     framework: 'Next.js',
   })
 
-  // ALL_BLOCKS order: connect_device, access_grants, …, webhooks
-  expect(steps.map((step) => step.id)).toEqual([
-    'connect_device',
-    'access_grants',
-    'webhooks',
-  ])
+  expect(steps.map((step) => step.id)).toEqual(
+    INTEGRATION_BLOCKS.map((block) => block.id),
+  )
 })
 
 test('buildIntegrationSteps: each step goal carries its block hint', () => {
   const steps = buildIntegrationSteps({
     mode: 'full_api',
-    selections: ['access_grants'],
     note: null,
     framework: 'Next.js',
   })
 
-  expect(steps[0]?.label).toBe(blockById('access_grants')?.label)
-  expect(steps[0]?.goal).toContain(hintFor('access_grants'))
-})
-
-test('buildIntegrationSteps: skips unknown block ids', () => {
-  const steps = buildIntegrationSteps({
-    mode: 'full_api',
-    selections: ['not_a_block', 'user_identities'],
-    note: null,
-    framework: null,
-  })
-
-  expect(steps.map((step) => step.id)).toEqual(['user_identities'])
+  for (const [index, block] of INTEGRATION_BLOCKS.entries()) {
+    expect(steps[index]?.label).toBe(block.label)
+    expect(steps[index]?.goal).toContain(block.agent_hint)
+  }
 })
 
 test('buildIntegrationSteps: appends the developer note to each step', () => {
   const steps = buildIntegrationSteps({
     mode: 'full_api',
-    selections: ['connect_device'],
     note: '  Use the existing service layer.  ',
     framework: null,
   })
 
-  expect(steps[0]?.goal).toContain(
-    'Additional context from the developer: Use the existing service layer.',
-  )
+  for (const step of steps) {
+    expect(step.goal).toContain(
+      'Additional context from the developer: Use the existing service layer.',
+    )
+  }
 })

@@ -58,7 +58,8 @@
     "inspect": "tsx --inspect src/bin/cli.ts wizard",
     "format": "prettier --write --ignore-path .gitignore .",
     "preformat": "eslint --fix .",
-    "report": "vitest run --coverage"
+    "report": "vitest run --coverage",
+    "screen": "tsx src/bin/screen.ts"
   },
   "engines": {
     "node": ">=22.12.0",
@@ -84,7 +85,8 @@
     "ink-spinner": "^5.0.0",
     "ink-text-input": "^6.0.0",
     "minimist": "^1.2.8",
-    "open": "^11.0.0"
+    "open": "^11.0.0",
+    "seam": "^1.232.1"
   },
   "devDependencies": {
     "@seamapi/cli": "^0.23.0",

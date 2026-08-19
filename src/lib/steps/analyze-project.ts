@@ -7,7 +7,7 @@ import {
   type WizardOnboarding,
 } from 'lib/util/seam-api.js'
 
-import { ALL_BLOCKS, type BuildMode } from './build-plan.js'
+import type { BuildMode } from './build-plan.js'
 import type { ProjectInfo, Sdk } from './detect-project.js'
 
 // A cheap classification model — the deep work happens in the integration
@@ -28,7 +28,6 @@ export interface ProjectSignals {
 
 export interface Recommendation {
   mode: BuildMode
-  selections: string[]
   app_type_guess: string | null
   rationale: string
   source: 'llm' | 'heuristic'
@@ -40,12 +39,12 @@ export interface ProjectAnalysis {
   used_onboarding: boolean
 }
 
-const VALID_BLOCK_IDS = new Set(ALL_BLOCKS.map((block) => block.id))
-
-// Gather what the project reveals about itself, then recommend a mode + build
-// blocks by combining those signals with the Console onboarding answers. The
-// recommendation comes from a short LLM call, falling back to a deterministic
-// heuristic if that call fails or returns something unusable.
+// Gather what the project reveals about itself, then recommend a mode by
+// combining those signals with the Console onboarding answers. Full-API
+// integrations always scaffold the same fixed set of building blocks, so the
+// recommendation only picks the mode. It comes from a short LLM call, falling
+// back to a deterministic heuristic if that call fails or returns something
+// unusable.
 export async function analyzeProject(args: {
   root: string
   project: ProjectInfo
@@ -169,10 +168,6 @@ async function recommendViaLlm(
   onboarding: WizardOnboarding | null,
   inference: { base_url: string; token: string },
 ): Promise<Recommendation> {
-  const blockMenu = ALL_BLOCKS.map(
-    (block) => `  "${block.id}" — ${block.label}`,
-  ).join('\n')
-
   const system =
     'You help developers integrate Seam, an API for smart locks, access ' +
     'control, and physical access. Given signals about a project, recommend ' +
@@ -199,15 +194,11 @@ async function recommendViaLlm(
     '1) mode: "customer_portal" (Seam hosts the UI; the app calls ~2 endpoints)',
     '   or "full_api" (control everything via the API, build your own UI).',
     '   If embed_customer_portal is true, strongly prefer customer_portal.',
-    '2) selections: building-block ids to scaffold — only for "full_api" (use',
-    '   [] for customer_portal). Always include "access_grants" for full_api.',
-    '   Valid ids:',
-    blockMenu,
-    '3) app_type_guess: short phrase (e.g. "vacation rental", "coworking",',
+    '2) app_type_guess: short phrase (e.g. "vacation rental", "coworking",',
     '   "property management", "unknown").',
-    '4) rationale: one short sentence.',
+    '3) rationale: one short sentence.',
     '',
-    'Return exactly: {"mode":"...","selections":["..."],"app_type_guess":"...","rationale":"..."}',
+    'Return exactly: {"mode":"...","app_type_guess":"...","rationale":"..."}',
   ].join('\n')
 
   const text = await callInferenceForText(inference, {
@@ -222,14 +213,9 @@ async function recommendViaLlm(
 
   const mode: BuildMode =
     parsed.mode === 'customer_portal' ? 'customer_portal' : 'full_api'
-  const selections =
-    mode === 'customer_portal'
-      ? []
-      : normalizeSelections(parsed.selections ?? [])
 
   return {
     mode,
-    selections,
     app_type_guess: parsed.app_type_guess ?? null,
     rationale: parsed.rationale ?? '',
     source: 'llm',
@@ -238,7 +224,6 @@ async function recommendViaLlm(
 
 function parseRecommendationJson(text: string): {
   mode?: string
-  selections?: unknown
   app_type_guess?: string
   rationale?: string
 } | null {
@@ -251,18 +236,6 @@ function parseRecommendationJson(text: string): {
   }
 }
 
-// Keep only known ids, always guarantee access_grants for the full-API path.
-function normalizeSelections(raw: unknown): string[] {
-  const ids = Array.isArray(raw)
-    ? raw.filter(
-        (id): id is string => typeof id === 'string' && VALID_BLOCK_IDS.has(id),
-      )
-    : []
-  const unique = [...new Set(ids)]
-  if (!unique.includes('access_grants')) unique.unshift('access_grants')
-  return unique
-}
-
 function heuristicRecommendation(
   signals: ProjectSignals,
   onboarding: WizardOnboarding | null,
@@ -270,7 +243,6 @@ function heuristicRecommendation(
   if (onboarding?.embed_customer_portal === true) {
     return {
       mode: 'customer_portal',
-      selections: [],
       app_type_guess: onboarding.use_case ?? onboarding.org_type ?? null,
       rationale: 'You chose to embed the Customer Portal during onboarding.',
       source: 'heuristic',
@@ -292,9 +264,7 @@ function heuristicRecommendation(
   const mentions = (...terms: string[]): boolean =>
     terms.some((term) => haystack.includes(term))
 
-  const selections = new Set<string>(['access_grants', 'connect_device'])
   let appTypeGuess: string | null = null
-
   if (
     mentions(
       'hotel',
@@ -307,7 +277,6 @@ function heuristicRecommendation(
       'hospitality',
     )
   ) {
-    selections.add('reservations')
     appTypeGuess = 'hospitality / short-term rental'
   } else if (
     mentions(
@@ -319,13 +288,11 @@ function heuristicRecommendation(
       'resident',
     )
   ) {
-    selections.add('user_identities')
     appTypeGuess = 'property / coworking'
   }
 
   return {
     mode: 'full_api',
-    selections: [...selections],
     app_type_guess: appTypeGuess,
     rationale: 'Recommended from your project and onboarding answers.',
     source: 'heuristic',

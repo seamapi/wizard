@@ -1,7 +1,7 @@
 import parseArgs from 'minimist'
 
 import { loadAuth, setAdapter, type WizardAdapter } from './adapter.js'
-import { renderApp } from './render.js'
+import { renderApp, renderDebugScreen } from './render.js'
 import seamapiWizardVersion from './version.js'
 
 export interface WizardOptions {
@@ -49,7 +49,8 @@ const wizard = async (options: WizardOptions = {}): Promise<void> => {
   if (options.adapter != null) setAdapter(options.adapter)
 
   const args = parseArgs([...argv], {
-    boolean: ['help', 'version'],
+    boolean: ['help', 'version', 'show-cost'],
+    string: ['debug-screen'],
     alias: { h: 'help', v: 'version' },
   })
 
@@ -63,9 +64,17 @@ const wizard = async (options: WizardOptions = {}): Promise<void> => {
     return
   }
 
+  // Dev-only: preview a screen's layout without the auth/agent flow. Passing
+  // `--debug-screen` with no name opens a chooser of every available screen.
+  const debugScreen = args['debug-screen']
+  if (typeof debugScreen === 'string') {
+    await renderDebugScreen(debugScreen.length > 0 ? debugScreen : undefined)
+    return
+  }
+
   await loadAuth()
 
-  await renderApp({ root: cwd })
+  await renderApp({ root: cwd, showCost: args['show-cost'] === true })
 }
 
 export default wizard
@@ -85,8 +94,10 @@ const usage = (commandName: string): string =>
     '',
     'Options',
     '',
-    '  -h, --help      Display this help guide.',
-    '  -v, --version   Display the version.',
+    '  -h, --help            Display this help guide.',
+    '  -v, --version         Display the version.',
+    '  --show-cost           Show the model cost on the final screen.',
+    '  --debug-screen [name] Preview a screen (dev). Omit name to choose one.',
     '',
   ].join('\n')
 

@@ -34,7 +34,6 @@ const exampleConnection: ProjectConnection = {
 
 const examplePlan: ProjectPlan = {
   mode: 'full_api',
-  selections: ['access_grants'],
   note: null,
   goal: 'Set up a Seam integration.',
   analysis: {

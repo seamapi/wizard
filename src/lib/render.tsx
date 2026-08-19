@@ -1,6 +1,7 @@
 import { render } from 'ink'
 
 import { App } from './app.js'
+import { DebugScreen } from './screens/debug-screen.js'
 
 const ESC = String.fromCharCode(27)
 // Enter alt screen + clear + home / leave alt screen (restores normal buffer).
@@ -10,6 +11,8 @@ const LEAVE_ALT_SCREEN = `${ESC}[?1049l`
 export interface RenderAppOptions {
   /** The project root the wizard sets up. */
   root: string
+  /** Show the model cost on the final screen (off by default). */
+  showCost?: boolean
 }
 
 /**
@@ -23,7 +26,10 @@ export interface RenderAppOptions {
  *
  * Rejects if the app fails to run, leaving the terminal restored either way.
  */
-export const renderApp = async ({ root }: RenderAppOptions): Promise<void> => {
+export const renderApp = async ({
+  root,
+  showCost = false,
+}: RenderAppOptions): Promise<void> => {
   const isTty = Boolean(process.stdout.isTTY)
   if (isTty) process.stdout.write(ENTER_ALT_SCREEN)
 
@@ -32,6 +38,7 @@ export const renderApp = async ({ root }: RenderAppOptions): Promise<void> => {
   const app = render(
     <App
       root={root}
+      showCost={showCost}
       onExit={(lines) => {
         transcript = lines
       }}
@@ -45,5 +52,25 @@ export const renderApp = async ({ root }: RenderAppOptions): Promise<void> => {
     if (transcript.length > 0) {
       process.stdout.write(`\n${transcript.join('\n')}\n`)
     }
+  }
+}
+
+/**
+ * Render a single named screen full-screen for previewing its layout, without
+ * running the wizard's auth/agent flow. Omit `name` (or pass an unknown one) to
+ * get a chooser of every screen. Exits on q / Esc.
+ */
+export const renderDebugScreen = async (name?: string): Promise<void> => {
+  const isTty = Boolean(process.stdout.isTTY)
+  if (isTty) process.stdout.write(ENTER_ALT_SCREEN)
+
+  const app = render(
+    name != null ? <DebugScreen name={name} /> : <DebugScreen />,
+  )
+
+  try {
+    await app.waitUntilExit()
+  } finally {
+    if (isTty) process.stdout.write(LEAVE_ALT_SCREEN)
   }
 }
