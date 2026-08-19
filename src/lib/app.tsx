@@ -25,8 +25,8 @@ import {
   verifyAndSaveKey,
 } from './steps/authenticate.js'
 import {
-  type BuildMode,
   buildIntegrationSteps,
+  type BuildMode,
   COMMON_BLOCKS,
   composeGoal,
   CORE_BLOCKS,
