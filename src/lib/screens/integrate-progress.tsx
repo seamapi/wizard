@@ -11,13 +11,13 @@ export interface StepState {
   status: StepStatus
 }
 
-const STEP_ICON: Record<StepStatus, string> = {
+export const STEP_ICON: Record<StepStatus, string> = {
   pending: '☐',
   active: '▶',
   done: '✓',
   failed: '✗',
 }
-const STEP_COLOR: Record<StepStatus, string> = {
+export const STEP_COLOR: Record<StepStatus, string> = {
   pending: 'gray',
   active: 'cyan',
   done: 'green',

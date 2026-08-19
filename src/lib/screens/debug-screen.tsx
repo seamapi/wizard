@@ -5,6 +5,7 @@ import { type ReactElement, type ReactNode, useState } from 'react'
 import { AuthScreen } from './auth.js'
 import { Header } from './header.js'
 import { IntegrateProgress, type StepState } from './integrate-progress.js'
+import { SetupProgress } from './setup-progress.js'
 import { WelcomeScreen } from './welcome.js'
 
 // Mock state so the Tasks + Learn/tips panel can be previewed mid-run: a mix of
@@ -22,6 +23,19 @@ const TASKS_STEP_STATES: StepState[] = [
 const SCREENS: Record<string, () => ReactElement> = {
   welcome: () => <WelcomeScreen />,
   auth: () => <AuthScreen />,
+  setup: () => (
+    <FullScreen>
+      <Header />
+      <SetupProgress
+        steps={[
+          { id: 'sdk', label: 'Install the Seam SDK', status: 'done' },
+          { id: 'plugin', label: 'Install the Seam plugin', status: 'active' },
+        ]}
+        label='Installing the Seam plugin…'
+        outputLines={['added 3 packages', 'found 0 vulnerabilities']}
+      />
+    </FullScreen>
+  ),
   tasks: () => <TasksPreview />,
 }
 

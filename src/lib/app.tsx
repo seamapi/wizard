@@ -17,6 +17,7 @@ import {
   IntegrateProgress,
   type StepState,
 } from './screens/integrate-progress.js'
+import { SetupProgress } from './screens/setup-progress.js'
 import { WelcomeScreen } from './screens/welcome.js'
 import {
   analyzeProject,
@@ -863,6 +864,44 @@ export function App({
     )
   }
 
+  // Installing the SDK + plugin runs on its own full screen, styled like the
+  // Tasks screen: a setup checklist with the running step spinning.
+  if (phase.t === 'install-sdk' || phase.t === 'install-plugin') {
+    const installingSdk = phase.t === 'install-sdk'
+    const setupSteps: StepState[] = [
+      {
+        id: 'sdk',
+        label: 'Install the Seam SDK',
+        status: installingSdk ? 'active' : 'done',
+      },
+      {
+        id: 'plugin',
+        label: 'Install the Seam plugin',
+        status: installingSdk ? 'pending' : 'active',
+      },
+    ]
+    return (
+      <Box
+        flexDirection='column'
+        height={dimensions.rows}
+        width={dimensions.columns}
+        paddingX={1}
+        paddingY={1}
+      >
+        <Header />
+        <SetupProgress
+          steps={setupSteps}
+          label={
+            installingSdk
+              ? 'Installing the Seam SDK…'
+              : 'Installing the Seam plugin…'
+          }
+          outputLines={installLines}
+        />
+      </Box>
+    )
+  }
+
   return (
     <Box
       flexDirection='column'
@@ -1014,30 +1053,6 @@ export function App({
           </Prompt>
         )
       }
-      case 'install-sdk':
-        return (
-          <Box flexDirection='column'>
-            <Pending label='Installing the Seam SDK…' />
-            {installLines.map((line, index) => (
-              <Text key={index} color='gray'>
-                {' '}
-                {line}
-              </Text>
-            ))}
-          </Box>
-        )
-      case 'install-plugin':
-        return (
-          <Box flexDirection='column'>
-            <Pending label='Installing the Seam plugin…' />
-            {installLines.map((line, index) => (
-              <Text key={index} color='gray'>
-                {' '}
-                {line}
-              </Text>
-            ))}
-          </Box>
-        )
       case 'offer-integrate':
         return (
           <Prompt title='Want the wizard to write your Seam integration now?'>
@@ -1136,6 +1151,8 @@ export function App({
           </Prompt>
         )
       case 'welcome':
+      case 'install-sdk':
+      case 'install-plugin':
       case 'integrate':
       case 'done':
       case 'error':
