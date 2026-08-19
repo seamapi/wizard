@@ -2,13 +2,36 @@ import { Box, Text, useApp, useInput, useStdin } from 'ink'
 import SelectInput from 'ink-select-input'
 import { type ReactElement, useState } from 'react'
 
+import { IntegrateProgress, type StepState } from './integrate-progress.js'
 import { WelcomeScreen } from './welcome.js'
+
+// Mock state so the Tasks + Learn/tips panel can be previewed mid-run: a mix of
+// done / active / pending steps, a wide `columns` so the Learn column shows.
+const TASKS_STEP_STATES: StepState[] = [
+  { id: 'connect_device', label: 'Connect a device', status: 'done' },
+  { id: 'access_grants', label: 'Access Grants', status: 'active' },
+  { id: 'user_identities', label: 'User Identities', status: 'pending' },
+  { id: 'reservations', label: 'Reservations', status: 'pending' },
+]
 
 // Named screens previewable via `--debug-screen <name>`, so the visuals can be
 // iterated on without running the real auth/agent flow. Add a screen here as it
 // gets built.
 const SCREENS: Record<string, () => ReactElement> = {
   welcome: () => <WelcomeScreen />,
+  tasks: () => (
+    <IntegrateProgress
+      stepStates={TASKS_STEP_STATES}
+      currentStep={{ label: 'Access Grants', index: 1, total: 4 }}
+      elapsedSec={72}
+      idleSec={0}
+      agentLines={[
+        'Reading src/pages/reservations/[key].tsx',
+        'Writing src/lib/seam.ts',
+      ]}
+      columns={120}
+    />
+  ),
 }
 
 export const DEBUG_SCREEN_NAMES = Object.keys(SCREENS)

@@ -28,7 +28,7 @@ export function WelcomeScreen(): ReactElement {
         </Text>
         <Text color='gray'>Your SEAM_API_KEY stays in your local .env.</Text>
         <Text> </Text>
-        <Text color='yellow'>▶ Get started</Text>
+        <Text color='yellow'>▶ Press any key to get started</Text>
       </Box>
     </Box>
   )

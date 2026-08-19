@@ -1,4 +1,4 @@
-import { Box, Text, useApp, useStdout } from 'ink'
+import { Box, Text, useApp, useInput, useStdin, useStdout } from 'ink'
 import SelectInput from 'ink-select-input'
 import Spinner from 'ink-spinner'
 import TextInput from 'ink-text-input'
@@ -12,6 +12,11 @@ import {
 
 import { getAuth } from './adapter.js'
 import { CheckboxList } from './components/checkbox-list.js'
+import {
+  IntegrateProgress,
+  type StepState,
+} from './screens/integrate-progress.js'
+import { WelcomeScreen } from './screens/welcome.js'
 import {
   analyzeProject,
   type ProjectAnalysis,
@@ -81,66 +86,8 @@ interface Msg {
   text: string
 }
 
-// The integration runs one step per selected building block; the Tasks panel
-// shows each step's live state.
-type StepStatus = 'pending' | 'active' | 'done' | 'failed'
-interface StepState {
-  id: string
-  label: string
-  status: StepStatus
-}
-
-const STEP_ICON: Record<StepStatus, string> = {
-  pending: '☐',
-  active: '▶',
-  done: '✓',
-  failed: '✗',
-}
-const STEP_COLOR: Record<StepStatus, string> = {
-  pending: 'gray',
-  active: 'cyan',
-  done: 'green',
-  failed: 'red',
-}
-
-// Educational cards shown in the Learn column beside the Tasks panel while the
-// agent works. Rotates every 8s off the elapsed clock, so no extra timer.
-const LEARN_CARDS: Array<{ title: string; lines: string[] }> = [
-  {
-    title: 'How Seam works',
-    lines: [
-      'An Access Grant gives a',
-      'person access to a space',
-      'or device for a window of',
-      'time.',
-      '',
-      'Seam issues the method:',
-      'PIN · mobile key · card',
-    ],
-  },
-  {
-    title: 'The building blocks',
-    lines: [
-      'Connected account',
-      '  → its Devices',
-      'Space groups devices',
-      'User identity = a person',
-      'Access grant links them',
-    ],
-  },
-  {
-    title: 'While this runs',
-    lines: [
-      'Docs  docs.seam.co',
-      'MCP   seam-docs, in your',
-      '      AI editor',
-      'API   connect.getseam.com',
-    ],
-  },
-]
-const LEARN_CARD_SECONDS = 8
-
 type Phase =
+  | { t: 'welcome' }
   | { t: 'init' }
   | { t: 'method' }
   | { t: 'browser' }
@@ -168,6 +115,7 @@ export function App({
 }): ReactElement {
   const { exit } = useApp()
   const { stdout } = useStdout()
+  const { isRawModeSupported } = useStdin()
   const projectRef = useRef<ProjectInfo>(detectProject(root))
   const attemptRef = useRef(0)
 
@@ -177,9 +125,21 @@ export function App({
   })
 
   const [messages, setMessages] = useState<Msg[]>([])
-  const [phase, setPhase] = useState<Phase>({ t: 'init' })
+  const [phase, setPhase] = useState<Phase>({ t: 'welcome' })
   const [sdk, setSdk] = useState<Sdk | null>(null)
   const [workspace, setWorkspace] = useState<SeamWorkspace | null>(null)
+
+  // The intro splash advances into the wizard on any keypress. Where raw mode
+  // isn't available (non-TTY) skip straight to init so the run isn't stuck.
+  useInput(
+    () => {
+      if (phase.t === 'welcome') setPhase({ t: 'init' })
+    },
+    { isActive: isRawModeSupported && phase.t === 'welcome' },
+  )
+  useEffect(() => {
+    if (phase.t === 'welcome' && !isRawModeSupported) setPhase({ t: 'init' })
+  }, [phase.t, isRawModeSupported])
 
   const [browser, setBrowser] = useState<{
     url: string | null
@@ -875,6 +835,9 @@ export function App({
   const transcriptCapacity = Math.max(1, dimensions.rows - 8)
   const visibleMessages = messages.slice(-transcriptCapacity)
 
+  // The intro splash takes over the whole screen (no header/transcript chrome).
+  if (phase.t === 'welcome') return <WelcomeScreen />
+
   return (
     <Box
       flexDirection='column'
@@ -1147,87 +1110,23 @@ export function App({
             </Box>
           </Prompt>
         )
-      case 'integrate': {
-        // Two-column Learn | Tasks only when the terminal is wide enough;
-        // otherwise Tasks alone, so a narrow window never wraps awkwardly.
-        const showLearn = dimensions.columns >= 90
-        const learnCard =
-          LEARN_CARDS[
-            Math.floor(integrateElapsedSec / LEARN_CARD_SECONDS) %
-              LEARN_CARDS.length
-          ]
+      case 'integrate':
         return (
-          <Box flexDirection='column'>
-            {stepStates.length > 0 && (
-              <Box flexDirection='row' marginBottom={1}>
-                {showLearn && learnCard != null && (
-                  <Box flexDirection='column' width={30} marginRight={3}>
-                    <Text bold color='cyan'>
-                      {' '}
-                      {learnCard.title}
-                    </Text>
-                    {learnCard.lines.map((line, index) => (
-                      <Text key={index} color='gray'>
-                        {' '}
-                        {line}
-                      </Text>
-                    ))}
-                  </Box>
-                )}
-                <Box flexDirection='column' flexGrow={1}>
-                  <Text bold> Tasks</Text>
-                  {stepStates.map((step) => (
-                    <Text key={step.id} color={STEP_COLOR[step.status]}>
-                      {'  '}
-                      {STEP_ICON[step.status]} {step.label}
-                    </Text>
-                  ))}
-                  <Text color='gray'>
-                    {'  '}Progress:{' '}
-                    {stepStates.filter((step) => step.status === 'done').length}
-                    /{stepStates.length} completed
-                  </Text>
-                </Box>
-              </Box>
-            )}
-            <Pending
-              label={
-                currentStep == null
-                  ? `Writing your Seam integration… ${formatElapsed(
-                      integrateElapsedSec,
-                    )}`
-                  : `${currentStep.label} (${currentStep.index + 1}/${
-                      currentStep.total
-                    }) · ${formatElapsed(integrateElapsedSec)}`
-              }
-            />
-            {integrateIdleSec >= 20 && (
-              <Text color='yellow'>
-                {' '}
-                Still working — large integrations take a few minutes, and Seam
-                AI may be busy. Press Ctrl-C to stop.
-              </Text>
-            )}
-            {agentLines.map((line, index) => (
-              <Text key={index} color='gray'>
-                {' '}
-                {line}
-              </Text>
-            ))}
-          </Box>
+          <IntegrateProgress
+            stepStates={stepStates}
+            currentStep={currentStep}
+            elapsedSec={integrateElapsedSec}
+            idleSec={integrateIdleSec}
+            agentLines={agentLines}
+            columns={dimensions.columns}
+          />
         )
-      }
+      case 'welcome':
       case 'done':
       case 'error':
         return null
     }
   }
-}
-
-function formatElapsed(totalSeconds: number): string {
-  const minutes = Math.floor(totalSeconds / 60)
-  const seconds = totalSeconds % 60
-  return `${minutes}:${String(seconds).padStart(2, '0')}`
 }
 
 function formatDate(timestamp: string): string {
