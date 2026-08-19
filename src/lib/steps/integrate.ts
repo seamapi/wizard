@@ -20,6 +20,29 @@ const ALLOWED_TOOLS = [
 ]
 
 export type IntegrateEvent =
+  // Per-step lifecycle — one set per step, in order. `index` is 0-based, `total`
+  // is the step count, so the UI can show "label (index+1/total)" and a checklist.
+  | {
+      kind: 'step_start'
+      id: string
+      label: string
+      index: number
+      total: number
+    }
+  | {
+      kind: 'step_done'
+      id: string
+      index: number
+      total: number
+      cost_usd: number | null
+    }
+  | {
+      kind: 'step_failed'
+      id: string
+      index: number
+      total: number
+      reason: string
+    }
   | { kind: 'text'; text: string }
   | { kind: 'tool'; name: string; detail: string }
   | { kind: 'done'; ok: boolean; summary: string; cost_usd: number | null }
@@ -73,18 +96,34 @@ export async function runIntegration(args: RunIntegrationArgs): Promise<void> {
   const summaries: string[] = []
 
   try {
-    for (const step of steps) {
+    for (const [index, step] of steps.entries()) {
       if (signal.aborted) break
 
       const remainingBudgetUsd = OVERALL_BUDGET_USD - totalCostUsd
       if (remainingBudgetUsd <= 0) {
         allOk = false
         summaries.push(`Skipped "${step.label}" — inference budget exhausted.`)
+        onEvent({
+          kind: 'step_failed',
+          id: step.id,
+          index,
+          total: steps.length,
+          reason: 'inference budget exhausted',
+        })
         break
       }
 
+      onEvent({
+        kind: 'step_start',
+        id: step.id,
+        label: step.label,
+        index,
+        total: steps.length,
+      })
+
       let stepOk = false
       let stepSummary = ''
+      let stepCostUsd: number | null = null
 
       for await (const message of query({
         prompt: step.goal,
@@ -146,20 +185,38 @@ export async function runIntegration(args: RunIntegrationArgs): Promise<void> {
             stepSummary = message.result
           }
           if (typeof message.total_cost_usd === 'number') {
+            stepCostUsd = message.total_cost_usd
             totalCostUsd += message.total_cost_usd
           }
         }
       }
+
+      if (signal.aborted) break
 
       if (stepSummary.trim().length > 0) {
         summaries.push(
           steps.length > 1 ? `${step.label}:\n${stepSummary}` : stepSummary,
         )
       }
-      // A failed step stops the run — later steps build on it. ENG-2835 will
-      // refine the per-step failure UX and the continue-vs-stop policy.
-      if (!stepOk) {
+      if (stepOk) {
+        onEvent({
+          kind: 'step_done',
+          id: step.id,
+          index,
+          total: steps.length,
+          cost_usd: stepCostUsd,
+        })
+      } else {
+        // A failed step stops the run — later steps build on it. ENG-2835 will
+        // refine the per-step failure UX and the continue-vs-stop policy.
         allOk = false
+        onEvent({
+          kind: 'step_failed',
+          id: step.id,
+          index,
+          total: steps.length,
+          reason: 'the step did not complete',
+        })
         break
       }
     }
