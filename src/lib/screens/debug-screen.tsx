@@ -2,9 +2,12 @@ import { Box, Text, useApp, useInput, useStdin, useStdout } from 'ink'
 import SelectInput from 'ink-select-input'
 import { type ReactElement, type ReactNode, useState } from 'react'
 
+import { AnalyzeScreen } from './analyze.js'
 import { AuthScreen } from './auth.js'
+import { ChecklistScreen } from './checklist.js'
 import { Header } from './header.js'
 import { IntegrateProgress, type StepState } from './integrate-progress.js'
+import { IntegrationModeScreen } from './integration-mode.js'
 import { SetupProgress } from './setup-progress.js'
 import { WelcomeScreen } from './welcome.js'
 
@@ -36,8 +39,53 @@ const SCREENS: Record<string, () => ReactElement> = {
       />
     </FullScreen>
   ),
+  analyze: () => (
+    <FullScreen>
+      <Header />
+      <AnalyzeScreen />
+    </FullScreen>
+  ),
+  mode: () => (
+    <FullScreen>
+      <Header />
+      <IntegrationModeScreen
+        items={[
+          {
+            label: 'Full API control — you build the UI, wire up the API',
+            value: 'full_api',
+          },
+          {
+            label:
+              'Customer Portal — Seam hosts the UI (you call ~2 endpoints)',
+            value: 'customer_portal',
+          },
+        ]}
+        rationale='Your project looks like a full app, so full API control fits.'
+        onSelect={NOOP}
+      />
+    </FullScreen>
+  ),
+  checklist: () => (
+    <FullScreen>
+      <Header />
+      <ChecklistScreen
+        items={[
+          { id: 'connect_device', label: 'Connect a device', group: 'Core' },
+          { id: 'access_grants', label: 'Access Grants', group: 'Core' },
+          { id: 'user_identities', label: 'User Identities', group: 'Core' },
+          { id: 'access_codes', label: 'Access Codes', group: 'Common' },
+          { id: 'reservations', label: 'Reservations', group: 'Common' },
+        ]}
+        initialSelected={['connect_device', 'access_grants', 'user_identities']}
+        onSubmit={NOOP}
+      />
+    </FullScreen>
+  ),
   tasks: () => <TasksPreview />,
 }
+
+// Preview screens are static: their selection handlers do nothing.
+const NOOP = (): void => {}
 
 // Previews the Tasks + tips panel full-screen, using the real terminal width so
 // the tips lay out (side-by-side vs. stacked) exactly as they will in a run.

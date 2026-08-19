@@ -11,12 +11,14 @@ import {
 } from 'react'
 
 import { getAuth } from './adapter.js'
-import { CheckboxList } from './components/checkbox-list.js'
+import { AnalyzeScreen } from './screens/analyze.js'
+import { ChecklistScreen } from './screens/checklist.js'
 import { Header } from './screens/header.js'
 import {
   IntegrateProgress,
   type StepState,
 } from './screens/integrate-progress.js'
+import { IntegrationModeScreen } from './screens/integration-mode.js'
 import { SetupProgress } from './screens/setup-progress.js'
 import { WelcomeScreen } from './screens/welcome.js'
 import {
@@ -837,35 +839,42 @@ export function App({
   const transcriptCapacity = Math.max(1, dimensions.rows - 8)
   const visibleMessages = messages.slice(-transcriptCapacity)
 
+  // Every step that isn't the transcript is its own full-screen screen: the
+  // header on top, the screen's content below. Sized to the terminal so it
+  // fills the alt screen.
+  const fullScreen = (content: ReactNode): ReactElement => (
+    <Box
+      flexDirection='column'
+      height={dimensions.rows}
+      width={dimensions.columns}
+      paddingX={1}
+      paddingY={1}
+    >
+      <Header />
+      {content}
+    </Box>
+  )
+
   // The intro splash takes over the whole screen (no header/transcript chrome).
   if (phase.t === 'welcome') return <WelcomeScreen />
 
   // The integration runs on its own full screen — the Tasks + tips panel is the
   // whole view, not a footer under the transcript.
   if (phase.t === 'integrate') {
-    return (
-      <Box
-        flexDirection='column'
-        height={dimensions.rows}
-        width={dimensions.columns}
-        paddingX={1}
-        paddingY={1}
-      >
-        <Header />
-        <IntegrateProgress
-          stepStates={stepStates}
-          currentStep={currentStep}
-          elapsedSec={integrateElapsedSec}
-          idleSec={integrateIdleSec}
-          agentLines={agentLines}
-          columns={dimensions.columns}
-        />
-      </Box>
+    return fullScreen(
+      <IntegrateProgress
+        stepStates={stepStates}
+        currentStep={currentStep}
+        elapsedSec={integrateElapsedSec}
+        idleSec={integrateIdleSec}
+        agentLines={agentLines}
+        columns={dimensions.columns}
+      />,
     )
   }
 
-  // Installing the SDK + plugin runs on its own full screen, styled like the
-  // Tasks screen: a setup checklist with the running step spinning.
+  // Installing the SDK + plugin, styled like the Tasks screen: a setup checklist
+  // with the running step spinning.
   if (phase.t === 'install-sdk' || phase.t === 'install-plugin') {
     const installingSdk = phase.t === 'install-sdk'
     const setupSteps: StepState[] = [
@@ -880,25 +889,69 @@ export function App({
         status: installingSdk ? 'pending' : 'active',
       },
     ]
-    return (
-      <Box
-        flexDirection='column'
-        height={dimensions.rows}
-        width={dimensions.columns}
-        paddingX={1}
-        paddingY={1}
-      >
-        <Header />
-        <SetupProgress
-          steps={setupSteps}
-          label={
-            installingSdk
-              ? 'Installing the Seam SDK…'
-              : 'Installing the Seam plugin…'
-          }
-          outputLines={installLines}
-        />
-      </Box>
+    return fullScreen(
+      <SetupProgress
+        steps={setupSteps}
+        label={
+          installingSdk
+            ? 'Installing the Seam SDK…'
+            : 'Installing the Seam plugin…'
+        }
+        outputLines={installLines}
+      />,
+    )
+  }
+
+  if (phase.t === 'analyze') return fullScreen(<AnalyzeScreen />)
+
+  if (phase.t === 'integrate-mode') {
+    const recommended: BuildMode = mode ?? 'full_api'
+    const portalItem = {
+      label: 'Customer Portal — Seam hosts the UI (you call ~2 endpoints)',
+      value: 'customer_portal',
+    }
+    const apiItem = {
+      label: 'Full API control — you build the UI, wire up the API',
+      value: 'full_api',
+    }
+    return fullScreen(
+      <IntegrationModeScreen
+        items={
+          recommended === 'customer_portal'
+            ? [portalItem, apiItem]
+            : [apiItem, portalItem]
+        }
+        rationale={analysis?.recommendation.rationale ?? undefined}
+        onSelect={(item) => {
+          const chosen: BuildMode =
+            item.value === 'customer_portal' ? 'customer_portal' : 'full_api'
+          setMode(chosen)
+          addMessage({
+            tone: 'info',
+            text: `Mode: ${chosen === 'customer_portal' ? 'Customer Portal' : 'Full API'}`,
+          })
+          setPhase(
+            chosen === 'customer_portal' ? { t: 'note' } : { t: 'checklist' },
+          )
+        }}
+      />,
+    )
+  }
+
+  if (phase.t === 'checklist') {
+    return fullScreen(
+      <ChecklistScreen
+        items={[...CORE_BLOCKS, ...COMMON_BLOCKS].map((block) => ({
+          id: block.id,
+          label: block.label,
+          group: block.group,
+        }))}
+        initialSelected={selections}
+        onSubmit={(chosen) => {
+          setSelections(chosen)
+          setPhase({ t: 'note' })
+        }}
+      />,
     )
   }
 
@@ -1071,71 +1124,6 @@ export function App({
             />
           </Prompt>
         )
-      case 'analyze':
-        return <Pending label='Analyzing your project…' />
-      case 'integrate-mode': {
-        const recommended: BuildMode = mode ?? 'full_api'
-        const portalItem = {
-          label: 'Customer Portal — Seam hosts the UI (you call ~2 endpoints)',
-          value: 'customer_portal',
-        }
-        const apiItem = {
-          label: 'Full API control — you build the UI, wire up the API',
-          value: 'full_api',
-        }
-        const items =
-          recommended === 'customer_portal'
-            ? [portalItem, apiItem]
-            : [apiItem, portalItem]
-        return (
-          <Prompt title='How do you want to integrate Seam?'>
-            {analysis?.recommendation.rationale != null &&
-              analysis.recommendation.rationale.length > 0 && (
-                <Text color='gray'>{`  ${analysis.recommendation.rationale}`}</Text>
-              )}
-            <SelectInput
-              items={items}
-              onSelect={(item) => {
-                const chosen: BuildMode =
-                  item.value === 'customer_portal'
-                    ? 'customer_portal'
-                    : 'full_api'
-                setMode(chosen)
-                addMessage({
-                  tone: 'info',
-                  text: `Mode: ${
-                    chosen === 'customer_portal'
-                      ? 'Customer Portal'
-                      : 'Full API'
-                  }`,
-                })
-                setPhase(
-                  chosen === 'customer_portal'
-                    ? { t: 'note' }
-                    : { t: 'checklist' },
-                )
-              }}
-            />
-          </Prompt>
-        )
-      }
-      case 'checklist':
-        return (
-          <Prompt title='What should the integration include? (space to toggle)'>
-            <CheckboxList
-              items={[...CORE_BLOCKS, ...COMMON_BLOCKS].map((block) => ({
-                id: block.id,
-                label: block.label,
-                group: block.group,
-              }))}
-              initial_selected={selections}
-              onSubmit={(chosen) => {
-                setSelections(chosen)
-                setPhase({ t: 'note' })
-              }}
-            />
-          </Prompt>
-        )
       case 'note':
         return (
           <Prompt title='Anything else to add? (optional — Enter to skip)'>
@@ -1153,6 +1141,9 @@ export function App({
       case 'welcome':
       case 'install-sdk':
       case 'install-plugin':
+      case 'analyze':
+      case 'integrate-mode':
+      case 'checklist':
       case 'integrate':
       case 'done':
       case 'error':
