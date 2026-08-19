@@ -21,7 +21,14 @@ const TASKS_STEP_STATES: StepState[] = [
 const SCREENS: Record<string, () => ReactElement> = {
   welcome: () => <WelcomeScreen />,
   auth: () => <AuthScreen />,
-  tasks: () => (
+  tasks: () => <TasksPreview />,
+}
+
+// Previews the Tasks + tips panel full-screen, using the real terminal width so
+// the tips lay out (side-by-side vs. stacked) exactly as they will in a run.
+function TasksPreview(): ReactElement {
+  const { stdout } = useStdout()
+  return (
     <FullScreen>
       <IntegrateProgress
         stepStates={TASKS_STEP_STATES}
@@ -32,10 +39,10 @@ const SCREENS: Record<string, () => ReactElement> = {
           'Reading src/pages/reservations/[key].tsx',
           'Writing src/lib/seam.ts',
         ]}
-        columns={120}
+        columns={stdout?.columns ?? 80}
       />
     </FullScreen>
-  ),
+  )
 }
 
 // Sizes a screen to the whole terminal so a preview matches how the app renders

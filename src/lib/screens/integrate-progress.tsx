@@ -84,9 +84,10 @@ export function IntegrateProgress({
   agentLines,
   columns,
 }: IntegrateProgressProps): ReactElement {
-  // Two-column Learn | Tasks only when the terminal is wide enough; otherwise
-  // Tasks alone, so a narrow window never wraps awkwardly.
-  const showLearn = columns >= 90
+  // Tips are always part of this screen: side-by-side with Tasks when the
+  // terminal is wide enough, stacked below it when narrow so they never wrap
+  // awkwardly — but never dropped.
+  const isWide = columns >= 90
   const learnCard =
     LEARN_CARDS[
       Math.floor(elapsedSec / LEARN_CARD_SECONDS) % LEARN_CARDS.length
@@ -98,38 +99,28 @@ export function IntegrateProgress({
 
   return (
     <Box flexDirection='column'>
-      {stepStates.length > 0 && (
-        <Box flexDirection='row' marginBottom={1}>
-          {showLearn && learnCard != null && (
-            <Box flexDirection='column' width={30} marginRight={3}>
-              <Text bold color='cyan'>
-                {' '}
-                {learnCard.title}
-              </Text>
-              {learnCard.lines.map((line, index) => (
-                <Text key={index} color='gray'>
-                  {' '}
-                  {line}
-                </Text>
-              ))}
+      {stepStates.length > 0 &&
+        (isWide ? (
+          <Box flexDirection='row' marginBottom={1}>
+            {learnCard != null && (
+              <Box flexDirection='column' width={30} marginRight={3}>
+                <Tips learnCard={learnCard} />
+              </Box>
+            )}
+            <Box flexDirection='column' flexGrow={1}>
+              <Tasks stepStates={stepStates} />
             </Box>
-          )}
-          <Box flexDirection='column' flexGrow={1}>
-            <Text bold> Tasks</Text>
-            {stepStates.map((step) => (
-              <Text key={step.id} color={STEP_COLOR[step.status]}>
-                {'  '}
-                {STEP_ICON[step.status]} {step.label}
-              </Text>
-            ))}
-            <Text color='gray'>
-              {'  '}Progress:{' '}
-              {stepStates.filter((step) => step.status === 'done').length}/
-              {stepStates.length} completed
-            </Text>
           </Box>
-        </Box>
-      )}
+        ) : (
+          <Box flexDirection='column' marginBottom={1}>
+            <Tasks stepStates={stepStates} />
+            {learnCard != null && (
+              <Box flexDirection='column' marginTop={1}>
+                <Tips learnCard={learnCard} />
+              </Box>
+            )}
+          </Box>
+        ))}
       <Text>
         <Text color='cyan'>
           <Spinner type='dots' />
@@ -150,5 +141,45 @@ export function IntegrateProgress({
         </Text>
       ))}
     </Box>
+  )
+}
+
+function Tips({
+  learnCard,
+}: {
+  learnCard: { title: string; lines: string[] }
+}): ReactElement {
+  return (
+    <>
+      <Text bold color='cyan'>
+        {' '}
+        {learnCard.title}
+      </Text>
+      {learnCard.lines.map((line, index) => (
+        <Text key={index} color='gray'>
+          {' '}
+          {line}
+        </Text>
+      ))}
+    </>
+  )
+}
+
+function Tasks({ stepStates }: { stepStates: StepState[] }): ReactElement {
+  return (
+    <>
+      <Text bold> Tasks</Text>
+      {stepStates.map((step) => (
+        <Text key={step.id} color={STEP_COLOR[step.status]}>
+          {'  '}
+          {STEP_ICON[step.status]} {step.label}
+        </Text>
+      ))}
+      <Text color='gray'>
+        {'  '}Progress:{' '}
+        {stepStates.filter((step) => step.status === 'done').length}/
+        {stepStates.length} completed
+      </Text>
+    </>
   )
 }
