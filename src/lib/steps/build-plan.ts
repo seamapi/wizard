@@ -10,6 +10,15 @@ export interface BuildBlock {
   agent_hint: string
 }
 
+// One agent step. The wizard runs the integration one step at a time, so each
+// selected building block becomes a step the agent — and the Tasks checklist —
+// works through in order.
+export interface IntegrationStep {
+  id: string
+  label: string
+  goal: string
+}
+
 // Core building blocks — the foundation almost every integration needs.
 // `access_grants` is Seam's recommended way to grant a person access, so it is
 // the default-checked item.
@@ -133,4 +142,51 @@ export function composeGoal(args: {
     'idiomatic, and add a short runnable example.' +
     noteSuffix
   )
+}
+
+// Break the chosen integration into ordered steps the agent runs one at a time.
+// Customer Portal is a single step; Full API is one step per selected building
+// block, so the agent loop and the Tasks checklist share the same list. The
+// holistic full-API guidance (extend existing flows, reservation -> access
+// grant) lives in the agent system prompt, so each per-block step inherits it.
+export function buildIntegrationSteps(args: {
+  mode: BuildMode
+  selections: string[]
+  note: string | null
+  framework: string | null
+}): IntegrationStep[] {
+  const { mode, selections, note, framework } = args
+
+  if (mode === 'customer_portal') {
+    return [
+      {
+        id: 'customer_portal',
+        label: 'Customer Portal',
+        goal: composeGoal({ mode, selections: [], note, framework }),
+      },
+    ]
+  }
+
+  const target = framework ?? 'the project'
+  const noteSuffix =
+    note != null && note.trim().length > 0
+      ? ` Additional context from the developer: ${note.trim()}`
+      : ''
+  const blocks = selections
+    .map((id) => blockById(id))
+    .filter((block): block is BuildBlock => block != null)
+
+  return blocks.map((block, index) => ({
+    id: block.id,
+    label: block.label,
+    goal:
+      `Continue the Seam integration in ${target} — step ${index + 1} of ${blocks.length}. ` +
+      'Earlier steps may already have added Seam setup; read the existing files ' +
+      'and build on them rather than duplicating. Now implement just this:\n' +
+      `- ${block.agent_hint}\n` +
+      "Wire it into the app's existing models, flows, and pages (extend them; do " +
+      'not add standalone Seam-only pages). Load SEAM_API_KEY from the existing ' +
+      '.env, keep changes minimal and idiomatic.' +
+      noteSuffix,
+  }))
 }
