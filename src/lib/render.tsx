@@ -51,13 +51,16 @@ export const renderApp = async ({ root }: RenderAppOptions): Promise<void> => {
 
 /**
  * Render a single named screen full-screen for previewing its layout, without
- * running the wizard's auth/agent flow. Exits on q / Esc / Enter.
+ * running the wizard's auth/agent flow. Omit `name` (or pass an unknown one) to
+ * get a chooser of every screen. Exits on q / Esc.
  */
-export const renderDebugScreen = async (name: string): Promise<void> => {
+export const renderDebugScreen = async (name?: string): Promise<void> => {
   const isTty = Boolean(process.stdout.isTTY)
   if (isTty) process.stdout.write(ENTER_ALT_SCREEN)
 
-  const app = render(<DebugScreen name={name} />)
+  const app = render(
+    name != null ? <DebugScreen name={name} /> : <DebugScreen />,
+  )
 
   try {
     await app.waitUntilExit()

@@ -64,10 +64,11 @@ const wizard = async (options: WizardOptions = {}): Promise<void> => {
     return
   }
 
-  // Dev-only: preview a single screen's layout without the auth/agent flow.
+  // Dev-only: preview a screen's layout without the auth/agent flow. Passing
+  // `--debug-screen` with no name opens a chooser of every available screen.
   const debugScreen = args['debug-screen']
-  if (typeof debugScreen === 'string' && debugScreen.length > 0) {
-    await renderDebugScreen(debugScreen)
+  if (typeof debugScreen === 'string') {
+    await renderDebugScreen(debugScreen.length > 0 ? debugScreen : undefined)
     return
   }
 
@@ -95,7 +96,7 @@ const usage = (commandName: string): string =>
     '',
     '  -h, --help            Display this help guide.',
     '  -v, --version         Display the version.',
-    '  --debug-screen <name> Preview a single screen and exit (dev).',
+    '  --debug-screen [name] Preview a screen (dev). Omit name to choose one.',
     '',
   ].join('\n')
 
