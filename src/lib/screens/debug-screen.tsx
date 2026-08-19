@@ -7,6 +7,7 @@ import { AuthScreen } from './auth.js'
 import { Header } from './header.js'
 import { IntegrateProgress, type StepState } from './integrate-progress.js'
 import { IntegrationModeScreen } from './integration-mode.js'
+import { NoteScreen } from './note.js'
 import { SetupProgress } from './setup-progress.js'
 import { WelcomeScreen } from './welcome.js'
 
@@ -45,6 +46,12 @@ const SCREENS: Record<string, () => ReactElement> = {
     </FullScreen>
   ),
   mode: () => <ModePreview />,
+  note: () => (
+    <FullScreen>
+      <Header />
+      <NoteScreen value='' onChange={NOOP} onSubmit={NOOP} />
+    </FullScreen>
+  ),
   tasks: () => <TasksPreview />,
 }
 

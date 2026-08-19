@@ -18,6 +18,7 @@ import {
   type StepState,
 } from './screens/integrate-progress.js'
 import { IntegrationModeScreen } from './screens/integration-mode.js'
+import { NoteScreen } from './screens/note.js'
 import { SetupProgress } from './screens/setup-progress.js'
 import { WelcomeScreen } from './screens/welcome.js'
 import {
@@ -934,6 +935,16 @@ export function App({
     )
   }
 
+  if (phase.t === 'note') {
+    return fullScreen(
+      <NoteScreen
+        value={noteValue}
+        onChange={setNoteValue}
+        onSubmit={(value) => startIntegration(value)}
+      />,
+    )
+  }
+
   return (
     <Box
       flexDirection='column'
@@ -1103,25 +1114,12 @@ export function App({
             />
           </Prompt>
         )
-      case 'note':
-        return (
-          <Prompt title='Anything else to add? (optional — Enter to skip)'>
-            <Box>
-              <Text color='cyan'>{'› '}</Text>
-              <TextInput
-                value={noteValue}
-                onChange={setNoteValue}
-                placeholder='e.g. wire it into the checkout page'
-                onSubmit={(value) => startIntegration(value)}
-              />
-            </Box>
-          </Prompt>
-        )
       case 'welcome':
       case 'install-sdk':
       case 'install-plugin':
       case 'analyze':
       case 'integrate-mode':
+      case 'note':
       case 'integrate':
       case 'done':
       case 'error':
