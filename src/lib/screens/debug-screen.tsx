@@ -44,7 +44,15 @@ const SCREENS: Record<string, () => ReactElement> = {
       <AnalyzeScreen />
     </FullScreen>
   ),
-  mode: () => (
+  mode: () => <ModePreview />,
+  tasks: () => <TasksPreview />,
+}
+
+// Previews the mode screen full-screen at the real terminal width so the side
+// column lays out (beside vs. below the options) as it will in a run.
+function ModePreview(): ReactElement {
+  const { stdout } = useStdout()
+  return (
     <FullScreen>
       <Header />
       <IntegrationModeScreen
@@ -58,13 +66,17 @@ const SCREENS: Record<string, () => ReactElement> = {
               'Customer Portal — Seam hosts the UI (you call ~2 endpoints)',
             value: 'customer_portal',
           },
+          {
+            label: 'Continue on my own — setup is done, I’ll build it',
+            value: 'continue_on_own',
+          },
         ]}
         rationale='Your project looks like a full app, so full API control fits.'
+        columns={stdout?.columns ?? 80}
         onSelect={NOOP}
       />
     </FullScreen>
-  ),
-  tasks: () => <TasksPreview />,
+  )
 }
 
 // Preview screens are static: their selection handlers do nothing.

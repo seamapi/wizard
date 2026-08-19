@@ -900,15 +900,27 @@ export function App({
       label: 'Full API control — you build the UI, wire up the API',
       value: 'full_api',
     }
+    // Setup (SDK + plugin) is already done by this point, so offer to stop here
+    // and integrate by hand.
+    const continueItem = {
+      label: 'Continue on my own — setup is done, I’ll build it',
+      value: 'continue_on_own',
+    }
     return fullScreen(
       <IntegrationModeScreen
-        items={
-          recommended === 'customer_portal'
+        items={[
+          ...(recommended === 'customer_portal'
             ? [portalItem, apiItem]
-            : [apiItem, portalItem]
-        }
+            : [apiItem, portalItem]),
+          continueItem,
+        ]}
         rationale={analysis?.recommendation.rationale ?? undefined}
+        columns={dimensions.columns}
         onSelect={(item) => {
+          if (item.value === 'continue_on_own') {
+            finishWithNextSteps()
+            return
+          }
           const chosen: BuildMode =
             item.value === 'customer_portal' ? 'customer_portal' : 'full_api'
           setMode(chosen)
