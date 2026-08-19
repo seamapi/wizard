@@ -838,6 +838,29 @@ export function App({
   // The intro splash takes over the whole screen (no header/transcript chrome).
   if (phase.t === 'welcome') return <WelcomeScreen />
 
+  // The integration runs on its own full screen — the Tasks + tips panel is the
+  // whole view, not a footer under the transcript.
+  if (phase.t === 'integrate') {
+    return (
+      <Box
+        flexDirection='column'
+        height={dimensions.rows}
+        width={dimensions.columns}
+        paddingX={1}
+        paddingY={1}
+      >
+        <IntegrateProgress
+          stepStates={stepStates}
+          currentStep={currentStep}
+          elapsedSec={integrateElapsedSec}
+          idleSec={integrateIdleSec}
+          agentLines={agentLines}
+          columns={dimensions.columns}
+        />
+      </Box>
+    )
+  }
+
   return (
     <Box
       flexDirection='column'
@@ -1110,18 +1133,8 @@ export function App({
             </Box>
           </Prompt>
         )
-      case 'integrate':
-        return (
-          <IntegrateProgress
-            stepStates={stepStates}
-            currentStep={currentStep}
-            elapsedSec={integrateElapsedSec}
-            idleSec={integrateIdleSec}
-            agentLines={agentLines}
-            columns={dimensions.columns}
-          />
-        )
       case 'welcome':
+      case 'integrate':
       case 'done':
       case 'error':
         return null
