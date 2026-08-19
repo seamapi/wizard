@@ -275,16 +275,24 @@ export function App({
         ok: event.ok,
         files_summary: event.summary.trim().slice(0, 4000),
         cost_usd: event.cost_usd,
+        steps: event.steps,
       }).catch(() => {})
+      const doneCount = event.steps.filter(
+        (step) => step.status === 'done',
+      ).length
+      const stepSuffix =
+        event.steps.length > 1
+          ? ` — ${doneCount}/${event.steps.length} steps completed`
+          : ''
       addMessage(
         event.ok
           ? {
               tone: 'ok',
-              text: 'Integration written — review it with `git diff`',
+              text: `Integration written${stepSuffix} — review it with \`git diff\``,
             }
           : {
               tone: 'warn',
-              text: 'Agent stopped early — review what it changed with `git diff`',
+              text: `Agent stopped early${stepSuffix} — review what it changed with \`git diff\``,
             },
       )
       for (const line of event.summary.trim().split('\n').slice(0, 15)) {

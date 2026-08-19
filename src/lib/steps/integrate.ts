@@ -1,5 +1,6 @@
 import { query } from '@anthropic-ai/claude-agent-sdk'
 
+import type { ProjectStepResult } from '../store/project-store.js'
 import type { IntegrationStep } from './build-plan.js'
 import type { Sdk } from './detect-project.js'
 
@@ -45,7 +46,13 @@ export type IntegrateEvent =
     }
   | { kind: 'text'; text: string }
   | { kind: 'tool'; name: string; detail: string }
-  | { kind: 'done'; ok: boolean; summary: string; cost_usd: number | null }
+  | {
+      kind: 'done'
+      ok: boolean
+      summary: string
+      cost_usd: number | null
+      steps: ProjectStepResult[]
+    }
 
 export interface RunIntegrationArgs {
   root: string
@@ -94,6 +101,17 @@ export async function runIntegration(args: RunIntegrationArgs): Promise<void> {
   let totalCostUsd = 0
   let allOk = true
   const summaries: string[] = []
+  // Per-step outcome, seeded as "skipped" and updated as each step resolves, so
+  // the run record lists every step even after an early stop.
+  const stepResults: ProjectStepResult[] = steps.map(
+    (step): ProjectStepResult => ({
+      id: step.id,
+      label: step.label,
+      status: 'skipped',
+      cost_usd: null,
+      summary: '',
+    }),
+  )
 
   try {
     for (const [index, step] of steps.entries()) {
@@ -103,6 +121,13 @@ export async function runIntegration(args: RunIntegrationArgs): Promise<void> {
       if (remainingBudgetUsd <= 0) {
         allOk = false
         summaries.push(`Skipped "${step.label}" — inference budget exhausted.`)
+        stepResults[index] = {
+          id: step.id,
+          label: step.label,
+          status: 'skipped',
+          cost_usd: null,
+          summary: 'inference budget exhausted',
+        }
         onEvent({
           kind: 'step_failed',
           id: step.id,
@@ -207,6 +232,13 @@ export async function runIntegration(args: RunIntegrationArgs): Promise<void> {
         )
       }
       if (stepOk) {
+        stepResults[index] = {
+          id: step.id,
+          label: step.label,
+          status: 'done',
+          cost_usd: stepCostUsd,
+          summary: stepSummary.slice(0, 500),
+        }
         onEvent({
           kind: 'step_done',
           id: step.id,
@@ -220,6 +252,13 @@ export async function runIntegration(args: RunIntegrationArgs): Promise<void> {
         allOk = false
         const reason = stepFailReason ?? 'the step did not complete'
         summaries.push(`${step.label}: stopped — ${reason}`)
+        stepResults[index] = {
+          id: step.id,
+          label: step.label,
+          status: 'failed',
+          cost_usd: stepCostUsd,
+          summary: reason,
+        }
         onEvent({
           kind: 'step_failed',
           id: step.id,
@@ -237,6 +276,7 @@ export async function runIntegration(args: RunIntegrationArgs): Promise<void> {
         ok: allOk,
         summary: summaries.join('\n\n'),
         cost_usd: totalCostUsd > 0 ? totalCostUsd : null,
+        steps: stepResults,
       })
     }
   } finally {
