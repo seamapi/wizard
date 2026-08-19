@@ -31,10 +31,21 @@ export interface ProjectPlan {
   }
 }
 
+export interface ProjectStepResult {
+  id: string
+  label: string
+  status: 'done' | 'failed' | 'skipped'
+  cost_usd: number | null
+  summary: string
+}
+
 export interface ProjectResult {
   ok: boolean
   files_summary: string
   cost_usd: number | null
+  // Per-step outcome for a multi-step (full-API) run; absent on older records.
+  // Additive/optional, so no schema bump is needed and old records stay valid.
+  steps?: ProjectStepResult[]
 }
 
 export interface OnboardingRecord {
