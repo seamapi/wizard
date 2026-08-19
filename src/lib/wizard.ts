@@ -1,7 +1,7 @@
 import parseArgs from 'minimist'
 
 import { loadAuth, setAdapter, type WizardAdapter } from './adapter.js'
-import { renderApp } from './render.js'
+import { renderApp, renderDebugScreen } from './render.js'
 import seamapiWizardVersion from './version.js'
 
 export interface WizardOptions {
@@ -50,6 +50,7 @@ const wizard = async (options: WizardOptions = {}): Promise<void> => {
 
   const args = parseArgs([...argv], {
     boolean: ['help', 'version'],
+    string: ['debug-screen'],
     alias: { h: 'help', v: 'version' },
   })
 
@@ -60,6 +61,13 @@ const wizard = async (options: WizardOptions = {}): Promise<void> => {
 
   if (args['version'] === true) {
     write(seamapiWizardVersion)
+    return
+  }
+
+  // Dev-only: preview a single screen's layout without the auth/agent flow.
+  const debugScreen = args['debug-screen']
+  if (typeof debugScreen === 'string' && debugScreen.length > 0) {
+    await renderDebugScreen(debugScreen)
     return
   }
 
@@ -85,8 +93,9 @@ const usage = (commandName: string): string =>
     '',
     'Options',
     '',
-    '  -h, --help      Display this help guide.',
-    '  -v, --version   Display the version.',
+    '  -h, --help            Display this help guide.',
+    '  -v, --version         Display the version.',
+    '  --debug-screen <name> Preview a single screen and exit (dev).',
     '',
   ].join('\n')
 

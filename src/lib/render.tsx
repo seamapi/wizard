@@ -1,6 +1,7 @@
 import { render } from 'ink'
 
 import { App } from './app.js'
+import { DebugScreen } from './screens/debug-screen.js'
 
 const ESC = String.fromCharCode(27)
 // Enter alt screen + clear + home / leave alt screen (restores normal buffer).
@@ -45,5 +46,22 @@ export const renderApp = async ({ root }: RenderAppOptions): Promise<void> => {
     if (transcript.length > 0) {
       process.stdout.write(`\n${transcript.join('\n')}\n`)
     }
+  }
+}
+
+/**
+ * Render a single named screen full-screen for previewing its layout, without
+ * running the wizard's auth/agent flow. Exits on q / Esc / Enter.
+ */
+export const renderDebugScreen = async (name: string): Promise<void> => {
+  const isTty = Boolean(process.stdout.isTTY)
+  if (isTty) process.stdout.write(ENTER_ALT_SCREEN)
+
+  const app = render(<DebugScreen name={name} />)
+
+  try {
+    await app.waitUntilExit()
+  } finally {
+    if (isTty) process.stdout.write(LEAVE_ALT_SCREEN)
   }
 }
