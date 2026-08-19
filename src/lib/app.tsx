@@ -25,10 +25,12 @@ import {
   verifyAndSaveKey,
 } from './steps/authenticate.js'
 import {
+  buildIntegrationSteps,
   type BuildMode,
   COMMON_BLOCKS,
   composeGoal,
   CORE_BLOCKS,
+  type IntegrationStep,
 } from './steps/build-plan.js'
 import { connectViaWeb } from './steps/connect-web.js'
 import {
@@ -94,7 +96,7 @@ type Phase =
   | { t: 'integrate-mode' }
   | { t: 'checklist' }
   | { t: 'note' }
-  | { t: 'integrate'; goal: string }
+  | { t: 'integrate'; steps: IntegrationStep[] }
   | { t: 'done' }
   | { t: 'error'; message: string }
 
@@ -187,7 +189,13 @@ export function App({
     planRef.current = plan
     recordPlan(root, plan).catch(() => {})
     addMessage({ tone: 'info', text: 'Saved your plan' })
-    setPhase({ t: 'integrate', goal })
+    const steps = buildIntegrationSteps({
+      mode: effectiveMode,
+      selections: effectiveSelections,
+      note,
+      framework: analysis?.signals.framework ?? null,
+    })
+    setPhase({ t: 'integrate', steps })
   }
 
   const handleIntegrateEvent = (event: IntegrateEvent): void => {
@@ -633,7 +641,7 @@ export function App({
   // developer Anthropic key.
   useEffect(() => {
     if (phase.t !== 'integrate') return
-    const { goal } = phase
+    const { steps } = phase
     const controller = new AbortController()
     const run = async (): Promise<void> => {
       if (session == null) {
@@ -650,7 +658,7 @@ export function App({
           root,
           sdk: sdk ?? 'javascript',
           workspace_name: workspace?.name ?? 'your workspace',
-          goal,
+          steps,
           inference: {
             base_url: getInferenceBaseUrl(),
             token: session.token,

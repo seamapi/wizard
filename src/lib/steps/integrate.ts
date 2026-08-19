@@ -1,5 +1,6 @@
 import { query } from '@anthropic-ai/claude-agent-sdk'
 
+import type { IntegrationStep } from './build-plan.js'
 import type { Sdk } from './detect-project.js'
 
 // The official Seam MCP (same server the seam-plugin wires up).
@@ -27,7 +28,9 @@ export interface RunIntegrationArgs {
   root: string
   sdk: Sdk
   workspace_name: string
-  goal: string
+  // The integration is run one step at a time (one agent pass per step), so a
+  // long run reads as discrete progress rather than one opaque call.
+  steps: IntegrationStep[]
   inference: { base_url: string; token: string }
   // The detected framework + chosen mode, so the agent fetches the matching
   // reference app from the Seam MCP (get_example_app) to model its work on.
@@ -37,15 +40,21 @@ export interface RunIntegrationArgs {
   onEvent: (event: IntegrateEvent) => void
 }
 
+// Overall dollar ceiling across all steps of one run. Each step is given the
+// budget still remaining, so N steps can never sum past this.
+const OVERALL_BUDGET_USD = 100
+
 // Drive the Claude Agent SDK to write the integration into the developer's
-// project, routed through Seam-hosted inference. Streams progress via onEvent;
-// resolves when the agent finishes or the signal aborts.
+// project, routed through Seam-hosted inference — one agent pass per step, in
+// order. Steps share the cwd (files persist) and env, so a later step reads and
+// builds on what earlier ones wrote. Streams progress via onEvent; resolves when
+// the run finishes or the signal aborts.
 export async function runIntegration(args: RunIntegrationArgs): Promise<void> {
   const {
     root,
     sdk,
     workspace_name: workspaceName,
-    goal,
+    steps,
     inference,
     framework,
     mode,
@@ -56,72 +65,112 @@ export async function runIntegration(args: RunIntegrationArgs): Promise<void> {
   const forwardAbort = (): void => abortController.abort()
   signal.addEventListener('abort', forwardAbort, { once: true })
 
+  const systemAppend = buildSystemAppend(sdk, workspaceName, framework, mode)
+  const agentEnv = buildAgentEnv(inference)
+
+  let totalCostUsd = 0
+  let allOk = true
+  const summaries: string[] = []
+
   try {
-    for await (const message of query({
-      prompt: goal,
-      options: {
-        cwd: root,
-        // Run the integration agent on Opus 4.8 for both modes. medium effort
-        // trims the thinking spend, and maxBudgetUsd is a hard per-run dollar
-        // ceiling.
-        model: 'claude-opus-4-8',
-        effort: 'medium',
-        maxBudgetUsd: 100,
-        env: buildAgentEnv(inference),
-        allowedTools: ALLOWED_TOOLS,
-        // Auto-apply file edits so the agent runs uninterrupted; the developer
-        // reviews the result as a git diff afterward. Read/search tools and the
-        // docs MCP are read-only, so nothing destructive runs unattended.
-        permissionMode: 'acceptEdits',
-        mcpServers: {
-          // Wired exactly like the seam-plugin: mcp-remote bridges to the hosted
-          // Seam MCP and runs the OAuth browser flow on first use, caching the
-          // token in ~/.mcp-auth. The developer's Claude Code (also using
-          // mcp-remote to the same server) then reuses it, already authenticated.
-          'seam-docs': {
-            command: 'npx',
-            args: ['-y', 'mcp-remote', SEAM_MCP_URL],
-          },
-        },
-        // Pick up any Seam skill installed into the project's .claude/skills.
-        settingSources: ['project'],
-        skills: 'all',
-        systemPrompt: {
-          type: 'preset',
-          preset: 'claude_code',
-          append: buildSystemAppend(sdk, workspaceName, framework, mode),
-        },
-        maxTurns: 100,
-        abortController,
-      },
-    })) {
+    for (const step of steps) {
       if (signal.aborted) break
 
-      if (message.type === 'assistant') {
-        for (const block of message.message.content) {
-          if (block.type === 'text') {
-            const text = block.text.trim()
-            if (text.length > 0) onEvent({ kind: 'text', text })
-          } else if (block.type === 'tool_use') {
-            onEvent({
-              kind: 'tool',
-              name: block.name,
-              detail: describeToolInput(block.input),
-            })
+      const remainingBudgetUsd = OVERALL_BUDGET_USD - totalCostUsd
+      if (remainingBudgetUsd <= 0) {
+        allOk = false
+        summaries.push(`Skipped "${step.label}" — inference budget exhausted.`)
+        break
+      }
+
+      let stepOk = false
+      let stepSummary = ''
+
+      for await (const message of query({
+        prompt: step.goal,
+        options: {
+          cwd: root,
+          // Run the integration agent on Opus 4.8. medium effort trims the
+          // thinking spend; maxBudgetUsd is the budget still left for this run.
+          model: 'claude-opus-4-8',
+          effort: 'medium',
+          maxBudgetUsd: remainingBudgetUsd,
+          env: agentEnv,
+          allowedTools: ALLOWED_TOOLS,
+          // Auto-apply file edits so the agent runs uninterrupted; the developer
+          // reviews the result as a git diff afterward. Read/search tools and the
+          // docs MCP are read-only, so nothing destructive runs unattended.
+          permissionMode: 'acceptEdits',
+          mcpServers: {
+            // Wired exactly like the seam-plugin: mcp-remote bridges to the
+            // hosted Seam MCP and runs the OAuth browser flow on first use,
+            // caching the token in ~/.mcp-auth. The developer's Claude Code
+            // (also using mcp-remote to the same server) then reuses it.
+            'seam-docs': {
+              command: 'npx',
+              args: ['-y', 'mcp-remote', SEAM_MCP_URL],
+            },
+          },
+          // Pick up any Seam skill installed into the project's .claude/skills.
+          settingSources: ['project'],
+          skills: 'all',
+          systemPrompt: {
+            type: 'preset',
+            preset: 'claude_code',
+            append: systemAppend,
+          },
+          maxTurns: 100,
+          abortController,
+        },
+      })) {
+        if (signal.aborted) break
+
+        if (message.type === 'assistant') {
+          for (const block of message.message.content) {
+            if (block.type === 'text') {
+              const text = block.text.trim()
+              if (text.length > 0) onEvent({ kind: 'text', text })
+            } else if (block.type === 'tool_use') {
+              onEvent({
+                kind: 'tool',
+                name: block.name,
+                detail: describeToolInput(block.input),
+              })
+            }
+          }
+        } else if (message.type === 'result') {
+          // `result` only exists on the success subtype; narrow on `message`
+          // itself so the type checker allows the access.
+          if (message.subtype === 'success') {
+            stepOk = true
+            stepSummary = message.result
+          }
+          if (typeof message.total_cost_usd === 'number') {
+            totalCostUsd += message.total_cost_usd
           }
         }
-      } else if (message.type === 'result') {
-        const ok = message.subtype === 'success'
-        onEvent({
-          kind: 'done',
-          ok,
-          summary: ok ? message.result : '',
-          cost_usd:
-            typeof message.total_cost_usd === 'number'
-              ? message.total_cost_usd
-              : null,
-        })
       }
+
+      if (stepSummary.trim().length > 0) {
+        summaries.push(
+          steps.length > 1 ? `${step.label}:\n${stepSummary}` : stepSummary,
+        )
+      }
+      // A failed step stops the run — later steps build on it. ENG-2835 will
+      // refine the per-step failure UX and the continue-vs-stop policy.
+      if (!stepOk) {
+        allOk = false
+        break
+      }
+    }
+
+    if (!signal.aborted) {
+      onEvent({
+        kind: 'done',
+        ok: allOk,
+        summary: summaries.join('\n\n'),
+        cost_usd: totalCostUsd > 0 ? totalCostUsd : null,
+      })
     }
   } finally {
     signal.removeEventListener('abort', forwardAbort)
@@ -154,6 +203,17 @@ function buildSystemAppend(
     `  Prefer Access Grants for granting a person access — they are Seam's recommended API.`,
     `- Read the surrounding project files first and match its language, framework, and conventions.`,
     ``,
+    ...(mode === 'customer_portal'
+      ? []
+      : [
+          `This is a full-API integration: wire Seam into the app's EXISTING models, flows, and pages —`,
+          `extend them, do not add standalone Seam-only pages. If the app has a reservation or booking`,
+          `flow, create an Access Grant when a reservation is created (its guest as a User Identity, on`,
+          `the reservation's space, over the stay window) and revoke it on cancellation by hooking the`,
+          `existing create/update/delete handlers; map connected devices onto the app's spaces/units;`,
+          `and surface the resulting access (such as the PIN code) on the existing reservation view.`,
+          ``,
+        ]),
     `Then implement exactly what the developer asked for — nothing more. Load SEAM_API_KEY from the`,
     `existing .env; never hardcode or print it. Keep changes minimal and idiomatic. When finished,`,
     `give a short summary of the files you changed and how to run the result.`,
