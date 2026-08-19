@@ -1,4 +1,4 @@
-import { Box, Text } from 'ink'
+import { Box, Text, useStdout } from 'ink'
 import type { ReactElement } from 'react'
 
 export interface IntegrationOutcome {
@@ -10,10 +10,11 @@ export interface IntegrationOutcome {
   totalSteps: number
 }
 
-// The last screen. Shows how the run went and how long it took; the cost is
-// only shown when the wizard is started with --show-cost. `outcome` is null
-// when the wizard finished without running the agent (e.g. "Continue on my
-// own"), so it just confirms setup.
+// The last screen — a centered celebration of what just shipped. Shows how the
+// run went and how long it took; the cost is only shown with --show-cost.
+// `outcome` is null when the wizard finished without running the agent (e.g.
+// "Continue on my own"), so it just confirms setup. Self-centers like the
+// welcome splash rather than sitting under the header.
 export function DoneScreen({
   workspaceName,
   outcome,
@@ -23,40 +24,67 @@ export function DoneScreen({
   outcome: IntegrationOutcome | null
   showCost: boolean
 }): ReactElement {
-  const summary =
+  const { stdout } = useStdout()
+  const rows = stdout?.rows ?? 24
+  const columns = stdout?.columns ?? 80
+
+  const stoppedEarly = outcome != null && !outcome.ok
+  const accent = stoppedEarly ? 'yellow' : 'green'
+  const headline = stoppedEarly
+    ? 'Almost there'
+    : outcome == null
+      ? 'You’re all set!'
+      : 'Integration complete!'
+
+  const stats =
     outcome == null
       ? null
-      : `${outcome.doneSteps}/${outcome.totalSteps} steps · took ${formatDuration(outcome.elapsedSec)}` +
+      : `${outcome.doneSteps}/${outcome.totalSteps} steps · ${formatDuration(outcome.elapsedSec)}` +
         (showCost && outcome.costUsd != null
           ? ` · $${outcome.costUsd.toFixed(2)}`
           : '')
 
   return (
-    <Box flexDirection='column'>
-      {outcome == null ? (
-        <Text bold color='green'>
-          ✓ You’re set up in {workspaceName}
+    <Box
+      height={rows}
+      width={columns}
+      alignItems='center'
+      justifyContent='center'
+    >
+      <Box
+        flexDirection='column'
+        alignItems='center'
+        borderStyle='round'
+        borderColor={accent}
+        paddingX={5}
+        paddingY={1}
+      >
+        <Text bold color={accent}>
+          ✦ ⋆ ˚ ✦ ⋆ ˚ ✦
         </Text>
-      ) : outcome.ok ? (
-        <Text bold color='green'>
-          ✓ Integration written in {workspaceName}
+        <Text> </Text>
+        <Text bold color={accent}>
+          {headline}
         </Text>
-      ) : (
-        <Text bold color='yellow'>
-          ▲ Agent stopped early
+        <Text color='gray'>
+          {stoppedEarly ? 'in ' : 'Seam is wired into '}
+          {workspaceName}
         </Text>
-      )}
-      {summary != null && <Text color='gray'>{summary}</Text>}
-      <Box flexDirection='column' marginTop={1}>
-        <Text bold>Next</Text>
-        {outcome != null && (
-          <Text color='gray'>{'  Review the changes with `git diff`'}</Text>
+        {stats != null && (
+          <>
+            <Text> </Text>
+            <Text bold>{stats}</Text>
+          </>
         )}
-        <Text color='gray'>{'  Docs   docs.seam.co'}</Text>
-        <Text color='gray'>{'  MCP    seam docs, in your editor'}</Text>
-      </Box>
-      <Box marginTop={1}>
-        <Text color='cyan'>Press any key to exit</Text>
+        <Text> </Text>
+        {outcome != null && (
+          <Text>
+            Review the changes with <Text color='cyan'>git diff</Text>
+          </Text>
+        )}
+        <Text color='gray'>docs.seam.co · seam docs MCP in your editor</Text>
+        <Text> </Text>
+        <Text color='gray'>Press any key to exit</Text>
       </Box>
     </Box>
   )

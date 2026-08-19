@@ -54,20 +54,17 @@ const SCREENS: Record<string, () => ReactElement> = {
     </FullScreen>
   ),
   done: () => (
-    <FullScreen>
-      <Header />
-      <DoneScreen
-        workspaceName='Acme Rentals'
-        outcome={{
-          ok: true,
-          costUsd: 1.24,
-          elapsedSec: 132,
-          doneSteps: 4,
-          totalSteps: 4,
-        }}
-        showCost
-      />
-    </FullScreen>
+    <DoneScreen
+      workspaceName='Acme Rentals'
+      outcome={{
+        ok: true,
+        costUsd: 1.24,
+        elapsedSec: 132,
+        doneSteps: 4,
+        totalSteps: 4,
+      }}
+      showCost
+    />
   ),
   tasks: () => <TasksPreview />,
 }

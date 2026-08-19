@@ -973,13 +973,14 @@ export function App({
     )
   }
 
+  // The final screen is a centered celebration — no header/transcript chrome.
   if (phase.t === 'done') {
-    return fullScreen(
+    return (
       <DoneScreen
         workspaceName={workspace?.name ?? 'your workspace'}
         outcome={finalResult}
         showCost={showCost}
-      />,
+      />
     )
   }
 
