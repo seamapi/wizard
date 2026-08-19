@@ -1,6 +1,6 @@
 {
   "name": "@seamapi/wizard",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "The AI powered Seam setup wizard.",
   "type": "module",
   "main": "index.js",
