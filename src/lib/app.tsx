@@ -103,6 +103,43 @@ const STEP_COLOR: Record<StepStatus, string> = {
   failed: 'red',
 }
 
+// Educational cards shown in the Learn column beside the Tasks panel while the
+// agent works. Rotates every 8s off the elapsed clock, so no extra timer.
+const LEARN_CARDS: Array<{ title: string; lines: string[] }> = [
+  {
+    title: 'How Seam works',
+    lines: [
+      'An Access Grant gives a',
+      'person access to a space',
+      'or device for a window of',
+      'time.',
+      '',
+      'Seam issues the method:',
+      'PIN · mobile key · card',
+    ],
+  },
+  {
+    title: 'The building blocks',
+    lines: [
+      'Connected account',
+      '  → its Devices',
+      'Space groups devices',
+      'User identity = a person',
+      'Access grant links them',
+    ],
+  },
+  {
+    title: 'While this runs',
+    lines: [
+      'Docs  docs.seam.co',
+      'MCP   seam-docs, in your',
+      '      AI editor',
+      'API   connect.getseam.com',
+    ],
+  },
+]
+const LEARN_CARD_SECONDS = 8
+
 type Phase =
   | { t: 'init' }
   | { t: 'method' }
@@ -1110,23 +1147,47 @@ export function App({
             </Box>
           </Prompt>
         )
-      case 'integrate':
+      case 'integrate': {
+        // Two-column Learn | Tasks only when the terminal is wide enough;
+        // otherwise Tasks alone, so a narrow window never wraps awkwardly.
+        const showLearn = dimensions.columns >= 90
+        const learnCard =
+          LEARN_CARDS[
+            Math.floor(integrateElapsedSec / LEARN_CARD_SECONDS) %
+              LEARN_CARDS.length
+          ]
         return (
           <Box flexDirection='column'>
             {stepStates.length > 0 && (
-              <Box flexDirection='column' marginBottom={1}>
-                <Text bold> Tasks</Text>
-                {stepStates.map((step) => (
-                  <Text key={step.id} color={STEP_COLOR[step.status]}>
-                    {'  '}
-                    {STEP_ICON[step.status]} {step.label}
+              <Box flexDirection='row' marginBottom={1}>
+                {showLearn && learnCard != null && (
+                  <Box flexDirection='column' width={30} marginRight={3}>
+                    <Text bold color='cyan'>
+                      {' '}
+                      {learnCard.title}
+                    </Text>
+                    {learnCard.lines.map((line, index) => (
+                      <Text key={index} color='gray'>
+                        {' '}
+                        {line}
+                      </Text>
+                    ))}
+                  </Box>
+                )}
+                <Box flexDirection='column' flexGrow={1}>
+                  <Text bold> Tasks</Text>
+                  {stepStates.map((step) => (
+                    <Text key={step.id} color={STEP_COLOR[step.status]}>
+                      {'  '}
+                      {STEP_ICON[step.status]} {step.label}
+                    </Text>
+                  ))}
+                  <Text color='gray'>
+                    {'  '}Progress:{' '}
+                    {stepStates.filter((step) => step.status === 'done').length}
+                    /{stepStates.length} completed
                   </Text>
-                ))}
-                <Text color='gray'>
-                  {'  '}Progress:{' '}
-                  {stepStates.filter((step) => step.status === 'done').length}/
-                  {stepStates.length} completed
-                </Text>
+                </Box>
               </Box>
             )}
             <Pending
@@ -1155,6 +1216,7 @@ export function App({
             ))}
           </Box>
         )
+      }
       case 'done':
       case 'error':
         return null
