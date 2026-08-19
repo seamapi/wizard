@@ -139,6 +139,11 @@ export function App({
   const [agentLines, setAgentLines] = useState<string[]>([])
   const [integrateElapsedSec, setIntegrateElapsedSec] = useState(0)
   const [integrateIdleSec, setIntegrateIdleSec] = useState(0)
+  const [currentStep, setCurrentStep] = useState<{
+    label: string
+    index: number
+    total: number
+  } | null>(null)
   const [session, setSession] = useState<WizardInferenceSession | null>(null)
   const [analysis, setAnalysis] = useState<ProjectAnalysis | null>(null)
   const [mode, setMode] = useState<BuildMode | null>(null)
@@ -199,7 +204,23 @@ export function App({
   }
 
   const handleIntegrateEvent = (event: IntegrateEvent): void => {
-    if (event.kind === 'text') {
+    if (event.kind === 'step_start') {
+      setCurrentStep({
+        label: event.label,
+        index: event.index,
+        total: event.total,
+      })
+      setAgentLines([])
+      setIntegrateIdleSec(0)
+    } else if (event.kind === 'step_done') {
+      // The completed state is reflected by the next step_start (or the final
+      // done); the checklist panel (ENG-2834) will mark it ✓.
+    } else if (event.kind === 'step_failed') {
+      addMessage({
+        tone: 'warn',
+        text: `Step ${event.index + 1}/${event.total} stopped — ${event.reason}`,
+      })
+    } else if (event.kind === 'text') {
       setIntegrateIdleSec(0)
       setAgentLines((previous) => [
         ...previous.slice(-5),
@@ -212,6 +233,7 @@ export function App({
         formatTool(event.name, event.detail),
       ])
     } else {
+      setCurrentStep(null)
       setAgentLines([])
       recordResult(root, {
         ok: event.ok,
@@ -708,6 +730,7 @@ export function App({
     if (phase.t !== 'integrate') {
       setIntegrateElapsedSec(0)
       setIntegrateIdleSec(0)
+      setCurrentStep(null)
       return
     }
     const interval = setInterval(() => {
@@ -1039,9 +1062,15 @@ export function App({
         return (
           <Box flexDirection='column'>
             <Pending
-              label={`Writing your Seam integration… ${formatElapsed(
-                integrateElapsedSec,
-              )}`}
+              label={
+                currentStep == null
+                  ? `Writing your Seam integration… ${formatElapsed(
+                      integrateElapsedSec,
+                    )}`
+                  : `${currentStep.label} (${currentStep.index + 1}/${
+                      currentStep.total
+                    }) · ${formatElapsed(integrateElapsedSec)}`
+              }
             />
             {integrateIdleSec >= 20 && (
               <Text color='yellow'>
