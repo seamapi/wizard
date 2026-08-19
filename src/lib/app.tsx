@@ -12,7 +12,6 @@ import {
 
 import { getAuth } from './adapter.js'
 import { AnalyzeScreen } from './screens/analyze.js'
-import { ChecklistScreen } from './screens/checklist.js'
 import { Header } from './screens/header.js'
 import {
   IntegrateProgress,
@@ -36,9 +35,7 @@ import {
 import {
   buildIntegrationSteps,
   type BuildMode,
-  COMMON_BLOCKS,
   composeGoal,
-  CORE_BLOCKS,
   type IntegrationStep,
 } from './steps/build-plan.js'
 import { connectViaWeb } from './steps/connect-web.js'
@@ -104,7 +101,6 @@ type Phase =
   | { t: 'offer-integrate' }
   | { t: 'analyze' }
   | { t: 'integrate-mode' }
-  | { t: 'checklist' }
   | { t: 'note' }
   | { t: 'integrate'; steps: IntegrationStep[] }
   | { t: 'done' }
@@ -171,7 +167,6 @@ export function App({
   const [session, setSession] = useState<WizardInferenceSession | null>(null)
   const [analysis, setAnalysis] = useState<ProjectAnalysis | null>(null)
   const [mode, setMode] = useState<BuildMode | null>(null)
-  const [selections, setSelections] = useState<string[]>([])
 
   const planRef = useRef<ProjectPlan | null>(null)
 
@@ -193,22 +188,15 @@ export function App({
   const startIntegration = (noteInput: string): void => {
     const note = noteInput.trim().length > 0 ? noteInput.trim() : null
     const effectiveMode: BuildMode = mode ?? 'full_api'
-    const effectiveSelections =
-      effectiveMode === 'customer_portal' ? [] : selections
-    const goal = composeGoal({
-      mode: effectiveMode,
-      selections: effectiveSelections,
-      note,
-      framework: analysis?.signals.framework ?? null,
-    })
+    const framework = analysis?.signals.framework ?? null
+    const goal = composeGoal({ mode: effectiveMode, note, framework })
     const plan: ProjectPlan = {
       mode: effectiveMode,
-      selections: effectiveSelections,
       note,
       goal,
       analysis: {
         sdk: analysis?.signals.sdk ?? null,
-        framework: analysis?.signals.framework ?? null,
+        framework,
         app_type_guess: analysis?.recommendation.app_type_guess ?? null,
         seam_already_setup: analysis?.signals.seam_already_setup ?? false,
         used_onboarding: analysis?.used_onboarding ?? false,
@@ -220,9 +208,8 @@ export function App({
     addMessage({ tone: 'info', text: 'Saved your plan' })
     const steps = buildIntegrationSteps({
       mode: effectiveMode,
-      selections: effectiveSelections,
       note,
-      framework: analysis?.signals.framework ?? null,
+      framework,
     })
     setPhase({ t: 'integrate', steps })
   }
@@ -668,7 +655,6 @@ export function App({
       if (cancelled) return
       setAnalysis(result)
       setMode(result.recommendation.mode)
-      setSelections(result.recommendation.selections)
 
       const detail = [
         result.signals.framework ?? result.signals.sdk,
@@ -930,25 +916,6 @@ export function App({
             tone: 'info',
             text: `Mode: ${chosen === 'customer_portal' ? 'Customer Portal' : 'Full API'}`,
           })
-          setPhase(
-            chosen === 'customer_portal' ? { t: 'note' } : { t: 'checklist' },
-          )
-        }}
-      />,
-    )
-  }
-
-  if (phase.t === 'checklist') {
-    return fullScreen(
-      <ChecklistScreen
-        items={[...CORE_BLOCKS, ...COMMON_BLOCKS].map((block) => ({
-          id: block.id,
-          label: block.label,
-          group: block.group,
-        }))}
-        initialSelected={selections}
-        onSubmit={(chosen) => {
-          setSelections(chosen)
           setPhase({ t: 'note' })
         }}
       />,
@@ -1143,7 +1110,6 @@ export function App({
       case 'install-plugin':
       case 'analyze':
       case 'integrate-mode':
-      case 'checklist':
       case 'integrate':
       case 'done':
       case 'error':

@@ -4,7 +4,6 @@ import { type ReactElement, type ReactNode, useState } from 'react'
 
 import { AnalyzeScreen } from './analyze.js'
 import { AuthScreen } from './auth.js'
-import { ChecklistScreen } from './checklist.js'
 import { Header } from './header.js'
 import { IntegrateProgress, type StepState } from './integrate-progress.js'
 import { IntegrationModeScreen } from './integration-mode.js'
@@ -17,7 +16,7 @@ const TASKS_STEP_STATES: StepState[] = [
   { id: 'connect_device', label: 'Connect a device', status: 'done' },
   { id: 'access_grants', label: 'Access Grants', status: 'active' },
   { id: 'user_identities', label: 'User Identities', status: 'pending' },
-  { id: 'reservations', label: 'Reservations', status: 'pending' },
+  { id: 'spaces', label: 'Spaces', status: 'pending' },
 ]
 
 // Named screens previewable via `--debug-screen <name>`, so the visuals can be
@@ -62,22 +61,6 @@ const SCREENS: Record<string, () => ReactElement> = {
         ]}
         rationale='Your project looks like a full app, so full API control fits.'
         onSelect={NOOP}
-      />
-    </FullScreen>
-  ),
-  checklist: () => (
-    <FullScreen>
-      <Header />
-      <ChecklistScreen
-        items={[
-          { id: 'connect_device', label: 'Connect a device', group: 'Core' },
-          { id: 'access_grants', label: 'Access Grants', group: 'Core' },
-          { id: 'user_identities', label: 'User Identities', group: 'Core' },
-          { id: 'access_codes', label: 'Access Codes', group: 'Common' },
-          { id: 'reservations', label: 'Reservations', group: 'Common' },
-        ]}
-        initialSelected={['connect_device', 'access_grants', 'user_identities']}
-        onSubmit={NOOP}
       />
     </FullScreen>
   ),
