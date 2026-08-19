@@ -81,6 +81,28 @@ interface Msg {
   text: string
 }
 
+// The integration runs one step per selected building block; the Tasks panel
+// shows each step's live state.
+type StepStatus = 'pending' | 'active' | 'done' | 'failed'
+interface StepState {
+  id: string
+  label: string
+  status: StepStatus
+}
+
+const STEP_ICON: Record<StepStatus, string> = {
+  pending: '☐',
+  active: '▶',
+  done: '✓',
+  failed: '✗',
+}
+const STEP_COLOR: Record<StepStatus, string> = {
+  pending: 'gray',
+  active: 'cyan',
+  done: 'green',
+  failed: 'red',
+}
+
 type Phase =
   | { t: 'init' }
   | { t: 'method' }
@@ -144,6 +166,7 @@ export function App({
     index: number
     total: number
   } | null>(null)
+  const [stepStates, setStepStates] = useState<StepState[]>([])
   const [session, setSession] = useState<WizardInferenceSession | null>(null)
   const [analysis, setAnalysis] = useState<ProjectAnalysis | null>(null)
   const [mode, setMode] = useState<BuildMode | null>(null)
@@ -210,12 +233,25 @@ export function App({
         index: event.index,
         total: event.total,
       })
+      setStepStates((previous) =>
+        previous.map((step, index) =>
+          index === event.index ? { ...step, status: 'active' } : step,
+        ),
+      )
       setAgentLines([])
       setIntegrateIdleSec(0)
     } else if (event.kind === 'step_done') {
-      // The completed state is reflected by the next step_start (or the final
-      // done); the checklist panel (ENG-2834) will mark it ✓.
+      setStepStates((previous) =>
+        previous.map((step, index) =>
+          index === event.index ? { ...step, status: 'done' } : step,
+        ),
+      )
     } else if (event.kind === 'step_failed') {
+      setStepStates((previous) =>
+        previous.map((step, index) =>
+          index === event.index ? { ...step, status: 'failed' } : step,
+        ),
+      )
       addMessage({
         tone: 'warn',
         text: `Step ${event.index + 1}/${event.total} stopped — ${event.reason}`,
@@ -664,6 +700,13 @@ export function App({
   useEffect(() => {
     if (phase.t !== 'integrate') return
     const { steps } = phase
+    setStepStates(
+      steps.map((step): StepState => ({
+        id: step.id,
+        label: step.label,
+        status: 'pending',
+      })),
+    )
     const controller = new AbortController()
     const run = async (): Promise<void> => {
       if (session == null) {
@@ -731,6 +774,7 @@ export function App({
       setIntegrateElapsedSec(0)
       setIntegrateIdleSec(0)
       setCurrentStep(null)
+      setStepStates([])
       return
     }
     const interval = setInterval(() => {
@@ -1061,6 +1105,22 @@ export function App({
       case 'integrate':
         return (
           <Box flexDirection='column'>
+            {stepStates.length > 0 && (
+              <Box flexDirection='column' marginBottom={1}>
+                <Text bold> Tasks</Text>
+                {stepStates.map((step) => (
+                  <Text key={step.id} color={STEP_COLOR[step.status]}>
+                    {'  '}
+                    {STEP_ICON[step.status]} {step.label}
+                  </Text>
+                ))}
+                <Text color='gray'>
+                  {'  '}Progress:{' '}
+                  {stepStates.filter((step) => step.status === 'done').length}/
+                  {stepStates.length} completed
+                </Text>
+              </Box>
+            )}
             <Pending
               label={
                 currentStep == null
