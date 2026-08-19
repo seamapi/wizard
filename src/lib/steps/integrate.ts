@@ -124,71 +124,79 @@ export async function runIntegration(args: RunIntegrationArgs): Promise<void> {
       let stepOk = false
       let stepSummary = ''
       let stepCostUsd: number | null = null
+      let stepFailReason: string | null = null
 
-      for await (const message of query({
-        prompt: step.goal,
-        options: {
-          cwd: root,
-          // Run the integration agent on Opus 4.8. medium effort trims the
-          // thinking spend; maxBudgetUsd is the budget still left for this run.
-          model: 'claude-opus-4-8',
-          effort: 'medium',
-          maxBudgetUsd: remainingBudgetUsd,
-          env: agentEnv,
-          allowedTools: ALLOWED_TOOLS,
-          // Auto-apply file edits so the agent runs uninterrupted; the developer
-          // reviews the result as a git diff afterward. Read/search tools and the
-          // docs MCP are read-only, so nothing destructive runs unattended.
-          permissionMode: 'acceptEdits',
-          mcpServers: {
-            // Wired exactly like the seam-plugin: mcp-remote bridges to the
-            // hosted Seam MCP and runs the OAuth browser flow on first use,
-            // caching the token in ~/.mcp-auth. The developer's Claude Code
-            // (also using mcp-remote to the same server) then reuses it.
-            'seam-docs': {
-              command: 'npx',
-              args: ['-y', 'mcp-remote', SEAM_MCP_URL],
+      try {
+        for await (const message of query({
+          prompt: step.goal,
+          options: {
+            cwd: root,
+            // Run the integration agent on Opus 4.8. medium effort trims the
+            // thinking spend; maxBudgetUsd is the budget still left for this run.
+            model: 'claude-opus-4-8',
+            effort: 'medium',
+            maxBudgetUsd: remainingBudgetUsd,
+            env: agentEnv,
+            allowedTools: ALLOWED_TOOLS,
+            // Auto-apply file edits so the agent runs uninterrupted; the developer
+            // reviews the result as a git diff afterward. Read/search tools and the
+            // docs MCP are read-only, so nothing destructive runs unattended.
+            permissionMode: 'acceptEdits',
+            mcpServers: {
+              // Wired exactly like the seam-plugin: mcp-remote bridges to the
+              // hosted Seam MCP and runs the OAuth browser flow on first use,
+              // caching the token in ~/.mcp-auth. The developer's Claude Code
+              // (also using mcp-remote to the same server) then reuses it.
+              'seam-docs': {
+                command: 'npx',
+                args: ['-y', 'mcp-remote', SEAM_MCP_URL],
+              },
             },
+            // Pick up any Seam skill installed into the project's .claude/skills.
+            settingSources: ['project'],
+            skills: 'all',
+            systemPrompt: {
+              type: 'preset',
+              preset: 'claude_code',
+              append: systemAppend,
+            },
+            maxTurns: 100,
+            abortController,
           },
-          // Pick up any Seam skill installed into the project's .claude/skills.
-          settingSources: ['project'],
-          skills: 'all',
-          systemPrompt: {
-            type: 'preset',
-            preset: 'claude_code',
-            append: systemAppend,
-          },
-          maxTurns: 100,
-          abortController,
-        },
-      })) {
-        if (signal.aborted) break
+        })) {
+          if (signal.aborted) break
 
-        if (message.type === 'assistant') {
-          for (const block of message.message.content) {
-            if (block.type === 'text') {
-              const text = block.text.trim()
-              if (text.length > 0) onEvent({ kind: 'text', text })
-            } else if (block.type === 'tool_use') {
-              onEvent({
-                kind: 'tool',
-                name: block.name,
-                detail: describeToolInput(block.input),
-              })
+          if (message.type === 'assistant') {
+            for (const block of message.message.content) {
+              if (block.type === 'text') {
+                const text = block.text.trim()
+                if (text.length > 0) onEvent({ kind: 'text', text })
+              } else if (block.type === 'tool_use') {
+                onEvent({
+                  kind: 'tool',
+                  name: block.name,
+                  detail: describeToolInput(block.input),
+                })
+              }
+            }
+          } else if (message.type === 'result') {
+            // `result` only exists on the success subtype; narrow on `message`
+            // itself so the type checker allows the access.
+            if (message.subtype === 'success') {
+              stepOk = true
+              stepSummary = message.result
+            }
+            if (typeof message.total_cost_usd === 'number') {
+              stepCostUsd = message.total_cost_usd
+              totalCostUsd += message.total_cost_usd
             }
           }
-        } else if (message.type === 'result') {
-          // `result` only exists on the success subtype; narrow on `message`
-          // itself so the type checker allows the access.
-          if (message.subtype === 'success') {
-            stepOk = true
-            stepSummary = message.result
-          }
-          if (typeof message.total_cost_usd === 'number') {
-            stepCostUsd = message.total_cost_usd
-            totalCostUsd += message.total_cost_usd
-          }
         }
+      } catch (error) {
+        // The SDK throws on failure (max turns, overload/529, …). Catch it per
+        // step so the run stops gracefully — marks this step failed and still
+        // records what earlier steps completed — instead of an opaque crash.
+        stepFailReason = describeStepError(error)
       }
 
       if (signal.aborted) break
@@ -207,15 +215,17 @@ export async function runIntegration(args: RunIntegrationArgs): Promise<void> {
           cost_usd: stepCostUsd,
         })
       } else {
-        // A failed step stops the run — later steps build on it. ENG-2835 will
-        // refine the per-step failure UX and the continue-vs-stop policy.
+        // Stop the run on a failed step — later steps build on it. Surface which
+        // step failed and why so the developer can re-run or finish by hand.
         allOk = false
+        const reason = stepFailReason ?? 'the step did not complete'
+        summaries.push(`${step.label}: stopped — ${reason}`)
         onEvent({
           kind: 'step_failed',
           id: step.id,
           index,
           total: steps.length,
-          reason: 'the step did not complete',
+          reason,
         })
         break
       }
@@ -294,6 +304,18 @@ function buildAgentEnv(inference: {
   env['ANTHROPIC_BASE_URL'] = inference.base_url
   env['ANTHROPIC_AUTH_TOKEN'] = inference.token
   return env
+}
+
+// Turn a caught step error into a short, provider-neutral reason for the UI.
+// Overload (529/503) is the common transient case, with its own friendly copy;
+// other errors are sanitized of the provider name and trimmed.
+function describeStepError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error)
+  if (/overload|\b529\b|\b503\b/i.test(raw)) {
+    return 'Seam AI is overloaded — wait a minute and re-run the wizard'
+  }
+  const sanitized = raw.replace(/Claude Code|Claude/g, 'Seam AI')
+  return sanitized.length > 200 ? `${sanitized.slice(0, 200)}…` : sanitized
 }
 
 // Pull the most useful identifier out of a tool's input for a one-line UI label,
