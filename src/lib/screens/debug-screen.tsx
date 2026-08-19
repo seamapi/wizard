@@ -3,6 +3,7 @@ import SelectInput from 'ink-select-input'
 import { type ReactElement, type ReactNode, useState } from 'react'
 
 import { AuthScreen } from './auth.js'
+import { Header } from './header.js'
 import { IntegrateProgress, type StepState } from './integrate-progress.js'
 import { WelcomeScreen } from './welcome.js'
 
@@ -30,6 +31,7 @@ function TasksPreview(): ReactElement {
   const { stdout } = useStdout()
   return (
     <FullScreen>
+      <Header />
       <IntegrateProgress
         stepStates={TASKS_STEP_STATES}
         currentStep={{ label: 'Access Grants', index: 1, total: 4 }}

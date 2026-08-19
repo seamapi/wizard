@@ -12,6 +12,7 @@ import {
 
 import { getAuth } from './adapter.js'
 import { CheckboxList } from './components/checkbox-list.js'
+import { Header } from './screens/header.js'
 import {
   IntegrateProgress,
   type StepState,
@@ -849,6 +850,7 @@ export function App({
         paddingX={1}
         paddingY={1}
       >
+        <Header />
         <IntegrateProgress
           stepStates={stepStates}
           currentStep={currentStep}
@@ -1231,16 +1233,6 @@ function formatTool(name: string, detail: string): string {
                 ? 'docs'
                 : name
   return detail.length > 0 ? `${verb} ${truncate(detail, 60)}` : verb
-}
-
-function Header(): ReactElement {
-  return (
-    <Box marginBottom={1}>
-      <Text backgroundColor='cyan' color='black' bold>
-        {' Seam setup wizard '}
-      </Text>
-    </Box>
-  )
 }
 
 // Plain-text rendering of a message, matching MessageLine's symbols — used to
