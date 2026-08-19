@@ -66,12 +66,26 @@ test('wizard: does not run the app when displaying the version', async () => {
 
 test('wizard: runs the app in the working directory by default', async () => {
   await wizard()
-  expect(renderApp).toHaveBeenCalledWith({ root: process.cwd() })
+  expect(renderApp).toHaveBeenCalledWith({
+    root: process.cwd(),
+    showCost: false,
+  })
 })
 
 test('wizard: runs the app in the given directory', async () => {
   await wizard({ argv: [], cwd: '/tmp/example-project' })
-  expect(renderApp).toHaveBeenCalledWith({ root: '/tmp/example-project' })
+  expect(renderApp).toHaveBeenCalledWith({
+    root: '/tmp/example-project',
+    showCost: false,
+  })
+})
+
+test('wizard: passes showCost when --show-cost is given', async () => {
+  await wizard({ argv: ['--show-cost'], cwd: '/tmp/example-project' })
+  expect(renderApp).toHaveBeenCalledWith({
+    root: '/tmp/example-project',
+    showCost: true,
+  })
 })
 
 test('wizard: runs on the adapter it is given', async () => {

@@ -12,6 +12,7 @@ import {
 
 import { getAuth } from './adapter.js'
 import { AnalyzeScreen } from './screens/analyze.js'
+import { DoneScreen, type IntegrationOutcome } from './screens/done.js'
 import { Header } from './screens/header.js'
 import {
   IntegrateProgress,
@@ -109,9 +110,11 @@ type Phase =
 
 export function App({
   root,
+  showCost = false,
   onExit,
 }: {
   root: string
+  showCost?: boolean
   onExit?: (lines: string[]) => void
 }): ReactElement {
   const { exit } = useApp()
@@ -168,8 +171,16 @@ export function App({
   const [session, setSession] = useState<WizardInferenceSession | null>(null)
   const [analysis, setAnalysis] = useState<ProjectAnalysis | null>(null)
   const [mode, setMode] = useState<BuildMode | null>(null)
+  // How the integration went, captured when it finishes so the final screen can
+  // report it. Null once done means the wizard finished without running the agent.
+  const [finalResult, setFinalResult] = useState<IntegrationOutcome | null>(
+    null,
+  )
 
   const planRef = useRef<ProjectPlan | null>(null)
+  // Mirrors integrateElapsedSec so the done event can read the final elapsed
+  // time without a stale closure (the tick updates state, not this handler).
+  const integrateElapsedRef = useRef(0)
 
   // Kept in sync with `messages` so the exit handler can hand the full
   // transcript to index.tsx to reprint after leaving the alt screen.
@@ -269,6 +280,13 @@ export function App({
       const doneCount = event.steps.filter(
         (step) => step.status === 'done',
       ).length
+      setFinalResult({
+        ok: event.ok,
+        costUsd: event.cost_usd ?? null,
+        elapsedSec: integrateElapsedRef.current,
+        doneSteps: doneCount,
+        totalSteps: event.steps.length,
+      })
       const stepSuffix =
         event.steps.length > 1
           ? ` — ${doneCount}/${event.steps.length} steps completed`
@@ -773,9 +791,11 @@ export function App({
       setStepStates([])
       return
     }
+    integrateElapsedRef.current = 0
     const interval = setInterval(() => {
       setIntegrateElapsedSec((seconds) => seconds + 1)
       setIntegrateIdleSec((seconds) => seconds + 1)
+      integrateElapsedRef.current += 1
     }, 1000)
     return () => clearInterval(interval)
   }, [phase.t])
@@ -803,22 +823,30 @@ export function App({
     }
   }, [stdout])
 
-  // exit when finished
+  const finish = (): void => {
+    onExit?.(messagesRef.current.map(formatMessageLine))
+    exit()
+  }
+
+  // exit when finished. `done` shows a final screen and waits for a keypress
+  // (see the useInput below); it only auto-exits where raw mode is unavailable
+  // (non-TTY) so a headless run never hangs. `error` always exits.
   useEffect(() => {
     if (phase.t !== 'done' && phase.t !== 'error') return
     if (phase.t === 'error') {
       addMessage({ tone: 'warn', text: phase.message })
       process.exitCode = 1
     }
+    if (phase.t === 'done' && isRawModeSupported) return
     // Hand the transcript back so index.tsx can reprint it once the alt screen
     // is torn down (its contents are otherwise discarded). Small delay lets the
     // final addMessage above flush into messagesRef.
-    const id = setTimeout(() => {
-      onExit?.(messagesRef.current.map(formatMessageLine))
-      exit()
-    }, 40)
+    const id = setTimeout(finish, 40)
     return () => clearTimeout(id)
   }, [phase.t])
+
+  // On the final screen, any key exits.
+  useInput(finish, { isActive: isRawModeSupported && phase.t === 'done' })
 
   // Full-screen: a header, the transcript (bounded to what fits), then the
   // active step. The outer box is sized to the terminal so it fills the alt
@@ -941,6 +969,16 @@ export function App({
         value={noteValue}
         onChange={setNoteValue}
         onSubmit={(value) => startIntegration(value)}
+      />,
+    )
+  }
+
+  if (phase.t === 'done') {
+    return fullScreen(
+      <DoneScreen
+        workspaceName={workspace?.name ?? 'your workspace'}
+        outcome={finalResult}
+        showCost={showCost}
       />,
     )
   }

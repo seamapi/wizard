@@ -11,6 +11,8 @@ const LEAVE_ALT_SCREEN = `${ESC}[?1049l`
 export interface RenderAppOptions {
   /** The project root the wizard sets up. */
   root: string
+  /** Show the model cost on the final screen (off by default). */
+  showCost?: boolean
 }
 
 /**
@@ -24,7 +26,10 @@ export interface RenderAppOptions {
  *
  * Rejects if the app fails to run, leaving the terminal restored either way.
  */
-export const renderApp = async ({ root }: RenderAppOptions): Promise<void> => {
+export const renderApp = async ({
+  root,
+  showCost = false,
+}: RenderAppOptions): Promise<void> => {
   const isTty = Boolean(process.stdout.isTTY)
   if (isTty) process.stdout.write(ENTER_ALT_SCREEN)
 
@@ -33,6 +38,7 @@ export const renderApp = async ({ root }: RenderAppOptions): Promise<void> => {
   const app = render(
     <App
       root={root}
+      showCost={showCost}
       onExit={(lines) => {
         transcript = lines
       }}

@@ -4,6 +4,7 @@ import { type ReactElement, type ReactNode, useState } from 'react'
 
 import { AnalyzeScreen } from './analyze.js'
 import { AuthScreen } from './auth.js'
+import { DoneScreen } from './done.js'
 import { Header } from './header.js'
 import { IntegrateProgress, type StepState } from './integrate-progress.js'
 import { IntegrationModeScreen } from './integration-mode.js'
@@ -50,6 +51,22 @@ const SCREENS: Record<string, () => ReactElement> = {
     <FullScreen>
       <Header />
       <NoteScreen value='' onChange={NOOP} onSubmit={NOOP} />
+    </FullScreen>
+  ),
+  done: () => (
+    <FullScreen>
+      <Header />
+      <DoneScreen
+        workspaceName='Acme Rentals'
+        outcome={{
+          ok: true,
+          costUsd: 1.24,
+          elapsedSec: 132,
+          doneSteps: 4,
+          totalSteps: 4,
+        }}
+        showCost
+      />
     </FullScreen>
   ),
   tasks: () => <TasksPreview />,
