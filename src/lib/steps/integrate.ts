@@ -1,6 +1,7 @@
 import { query } from '@anthropic-ai/claude-agent-sdk'
 
-import type { ProjectStepResult } from '../store/project-store.js'
+import type { ProjectStepResult } from 'lib/store/project-store.js'
+
 import type { IntegrationStep } from './build-plan.js'
 import type { Sdk } from './detect-project.js'
 
