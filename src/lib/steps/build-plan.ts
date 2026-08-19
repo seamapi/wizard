@@ -172,9 +172,12 @@ export function buildIntegrationSteps(args: {
     note != null && note.trim().length > 0
       ? ` Additional context from the developer: ${note.trim()}`
       : ''
-  const blocks = selections
-    .map((id) => blockById(id))
-    .filter((block): block is BuildBlock => block != null)
+  // Order steps by the canonical block order (CORE then COMMON), not the order
+  // the developer happened to toggle them in — so the checklist and the agent
+  // loop are deterministic and match the checklist's own display order. Unknown
+  // ids fall out because they aren't in ALL_BLOCKS.
+  const selectedIds = new Set(selections)
+  const blocks = ALL_BLOCKS.filter((block) => selectedIds.has(block.id))
 
   return blocks.map((block, index) => ({
     id: block.id,

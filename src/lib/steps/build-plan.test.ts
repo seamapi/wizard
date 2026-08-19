@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 
-import { blockById, composeGoal } from './build-plan.js'
+import { blockById, buildIntegrationSteps, composeGoal } from './build-plan.js'
 
 const hintFor = (id: string): string => {
   const block = blockById(id)
@@ -143,4 +143,69 @@ test('composeGoal: omits the note when it is only whitespace', () => {
   })
 
   expect(goal).not.toContain('Additional context from the developer')
+})
+
+test('buildIntegrationSteps: customer_portal is a single step', () => {
+  const steps = buildIntegrationSteps({
+    mode: 'customer_portal',
+    selections: [],
+    note: null,
+    framework: 'Next.js',
+  })
+
+  expect(steps).toHaveLength(1)
+  expect(steps[0]?.id).toBe('customer_portal')
+  expect(steps[0]?.goal).toContain('Customer Portal')
+})
+
+test('buildIntegrationSteps: full_api orders steps canonically, not by selection order', () => {
+  const steps = buildIntegrationSteps({
+    mode: 'full_api',
+    selections: ['webhooks', 'connect_device', 'access_grants'],
+    note: null,
+    framework: 'Next.js',
+  })
+
+  // ALL_BLOCKS order: connect_device, access_grants, …, webhooks
+  expect(steps.map((step) => step.id)).toEqual([
+    'connect_device',
+    'access_grants',
+    'webhooks',
+  ])
+})
+
+test('buildIntegrationSteps: each step goal carries its block hint', () => {
+  const steps = buildIntegrationSteps({
+    mode: 'full_api',
+    selections: ['access_grants'],
+    note: null,
+    framework: 'Next.js',
+  })
+
+  expect(steps[0]?.label).toBe(blockById('access_grants')?.label)
+  expect(steps[0]?.goal).toContain(hintFor('access_grants'))
+})
+
+test('buildIntegrationSteps: skips unknown block ids', () => {
+  const steps = buildIntegrationSteps({
+    mode: 'full_api',
+    selections: ['not_a_block', 'user_identities'],
+    note: null,
+    framework: null,
+  })
+
+  expect(steps.map((step) => step.id)).toEqual(['user_identities'])
+})
+
+test('buildIntegrationSteps: appends the developer note to each step', () => {
+  const steps = buildIntegrationSteps({
+    mode: 'full_api',
+    selections: ['connect_device'],
+    note: '  Use the existing service layer.  ',
+    framework: null,
+  })
+
+  expect(steps[0]?.goal).toContain(
+    'Additional context from the developer: Use the existing service layer.',
+  )
 })
