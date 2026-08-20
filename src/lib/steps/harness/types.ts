@@ -20,9 +20,12 @@ export interface HarnessRunStepArgs {
   // Dollars still left in this run; the harness caps its spend to this.
   maxBudgetUsd: number
   // System-prompt append and the child-process env (points inference at the
-  // Seam proxy), both built once by the caller and shared across steps.
+  // Seam proxy), both built once by the caller and shared across steps. The
+  // anthropic harness uses agentEnv (child-process env); the pi harness uses
+  // inference directly to register a provider — both point at the Seam proxy.
   systemAppend: string
   agentEnv: Record<string, string>
+  inference: { base_url: string; token: string }
   signal: AbortSignal
   abortController: AbortController
   // Stream callbacks so the harness stays decoupled from the IntegrateEvent
