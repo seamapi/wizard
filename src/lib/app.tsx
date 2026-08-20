@@ -21,7 +21,6 @@ import {
 import { IntegrationModeScreen } from './screens/integration-mode.js'
 import { NoteScreen } from './screens/note.js'
 import { SetupProgress } from './screens/setup-progress.js'
-import { LEARN_CARDS, Tips } from './screens/tips.js'
 import { WelcomeScreen } from './screens/welcome.js'
 import {
   analyzeProject,
@@ -998,13 +997,9 @@ export function App({
     )
   }
 
-  // The running frame: header, then a two-column body — Recent activity on the
-  // left, a Tips card on the right (dropped when the terminal is too narrow) —
-  // then the active prompt below. The tip advances gently as activity grows, so
-  // it varies over a run without a timer.
-  const showTips = dimensions.columns >= 90
-  const tipCard =
-    LEARN_CARDS[Math.floor(messages.length / 4) % LEARN_CARDS.length]
+  // The running frame: header, the recent-activity transcript, then the active
+  // prompt. Tips live on the Tasks screen (where the agent works and there is a
+  // real wait), not on these quick setup prompts.
   return (
     <Box
       flexDirection='column'
@@ -1013,19 +1008,11 @@ export function App({
       paddingX={1}
     >
       <Header />
-      <Box flexDirection='row' flexGrow={1}>
-        <Box flexDirection='column' flexGrow={1} marginRight={showTips ? 3 : 0}>
-          <Text bold>Recent activity</Text>
-          {visibleMessages.map((message, index) => (
-            <MessageLine key={index} message={message} />
-          ))}
-        </Box>
-        {showTips && tipCard != null && (
-          <Box flexDirection='column' width={32}>
-            <Text bold> Tips</Text>
-            <Tips learnCard={tipCard} />
-          </Box>
-        )}
+      <Box flexDirection='column' flexGrow={1}>
+        <Text bold>Recent activity</Text>
+        {visibleMessages.map((message, index) => (
+          <MessageLine key={index} message={message} />
+        ))}
       </Box>
       {renderActive()}
     </Box>
