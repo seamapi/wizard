@@ -997,10 +997,28 @@ export function App({
     )
   }
 
-  // The running frame: header, then a two-column body — Recent activity on the
-  // left, the active prompt (the question) on the right. On a narrow terminal
-  // they stack, prompt below the activity, so nothing wraps awkwardly.
+  // The running frame: header, then a two-column body — the active prompt (the
+  // question) on the left, Recent activity on the right. On a narrow terminal
+  // they stack (activity first, then the prompt) so nothing wraps awkwardly.
   const twoColumn = dimensions.columns >= 90
+  const activityColumn = (
+    <Box flexDirection='column' flexGrow={1}>
+      <Text bold>Recent activity</Text>
+      {visibleMessages.map((message, index) => (
+        <MessageLine key={index} message={message} />
+      ))}
+    </Box>
+  )
+  const promptColumn = (
+    <Box
+      flexDirection='column'
+      flexGrow={1}
+      marginRight={twoColumn ? 3 : 0}
+      marginTop={twoColumn ? 0 : 1}
+    >
+      {renderActive()}
+    </Box>
+  )
   return (
     <Box
       flexDirection='column'
@@ -1010,19 +1028,17 @@ export function App({
     >
       <Header />
       <Box flexDirection={twoColumn ? 'row' : 'column'} flexGrow={1}>
-        <Box
-          flexDirection='column'
-          flexGrow={1}
-          marginRight={twoColumn ? 3 : 0}
-        >
-          <Text bold>Recent activity</Text>
-          {visibleMessages.map((message, index) => (
-            <MessageLine key={index} message={message} />
-          ))}
-        </Box>
-        <Box flexDirection='column' flexGrow={1} marginTop={twoColumn ? 0 : 1}>
-          {renderActive()}
-        </Box>
+        {twoColumn ? (
+          <>
+            {promptColumn}
+            {activityColumn}
+          </>
+        ) : (
+          <>
+            {activityColumn}
+            {promptColumn}
+          </>
+        )}
       </Box>
     </Box>
   )
