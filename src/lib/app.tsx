@@ -997,9 +997,10 @@ export function App({
     )
   }
 
-  // The running frame: header, the recent-activity transcript, then the active
-  // prompt. Tips live on the Tasks screen (where the agent works and there is a
-  // real wait), not on these quick setup prompts.
+  // The running frame: header, then a two-column body — Recent activity on the
+  // left, the active prompt (the question) on the right. On a narrow terminal
+  // they stack, prompt below the activity, so nothing wraps awkwardly.
+  const twoColumn = dimensions.columns >= 90
   return (
     <Box
       flexDirection='column'
@@ -1008,13 +1009,21 @@ export function App({
       paddingX={1}
     >
       <Header />
-      <Box flexDirection='column' flexGrow={1}>
-        <Text bold>Recent activity</Text>
-        {visibleMessages.map((message, index) => (
-          <MessageLine key={index} message={message} />
-        ))}
+      <Box flexDirection={twoColumn ? 'row' : 'column'} flexGrow={1}>
+        <Box
+          flexDirection='column'
+          flexGrow={1}
+          marginRight={twoColumn ? 3 : 0}
+        >
+          <Text bold>Recent activity</Text>
+          {visibleMessages.map((message, index) => (
+            <MessageLine key={index} message={message} />
+          ))}
+        </Box>
+        <Box flexDirection='column' flexGrow={1} marginTop={twoColumn ? 0 : 1}>
+          {renderActive()}
+        </Box>
       </Box>
-      {renderActive()}
     </Box>
   )
 
