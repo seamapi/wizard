@@ -2,6 +2,8 @@ import { Box, Text } from 'ink'
 import Spinner from 'ink-spinner'
 import type { ReactElement } from 'react'
 
+import { LEARN_CARD_SECONDS, LEARN_CARDS, Tips } from './tips.js'
+
 // The integration runs one step per selected building block; this panel shows
 // each step's live state (the Tasks column) alongside a rotating Learn column.
 export type StepStatus = 'pending' | 'active' | 'done' | 'failed'
@@ -23,43 +25,6 @@ export const STEP_COLOR: Record<StepStatus, string> = {
   done: 'green',
   failed: 'red',
 }
-
-// Educational cards shown in the Learn column while the agent works. Rotates
-// every 8s off the elapsed clock, so no extra timer.
-const LEARN_CARDS: Array<{ title: string; lines: string[] }> = [
-  {
-    title: 'How Seam works',
-    lines: [
-      'An Access Grant gives a',
-      'person access to a space',
-      'or device for a window of',
-      'time.',
-      '',
-      'Seam issues the method:',
-      'PIN · mobile key · card',
-    ],
-  },
-  {
-    title: 'The building blocks',
-    lines: [
-      'Connected account',
-      '  → its Devices',
-      'Space groups devices',
-      'User identity = a person',
-      'Access grant links them',
-    ],
-  },
-  {
-    title: 'While this runs',
-    lines: [
-      'Docs  docs.seam.co',
-      'MCP   seam-docs, in your',
-      '      AI editor',
-      'API   connect.getseam.com',
-    ],
-  },
-]
-const LEARN_CARD_SECONDS = 8
 
 const formatElapsed = (totalSeconds: number): string => {
   const minutes = Math.floor(totalSeconds / 60)
@@ -141,27 +106,6 @@ export function IntegrateProgress({
         </Text>
       ))}
     </Box>
-  )
-}
-
-function Tips({
-  learnCard,
-}: {
-  learnCard: { title: string; lines: string[] }
-}): ReactElement {
-  return (
-    <>
-      <Text bold color='cyan'>
-        {' '}
-        {learnCard.title}
-      </Text>
-      {learnCard.lines.map((line, index) => (
-        <Text key={index} color='gray'>
-          {' '}
-          {line}
-        </Text>
-      ))}
-    </>
   )
 }
 
