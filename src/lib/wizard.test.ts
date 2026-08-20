@@ -69,6 +69,7 @@ test('wizard: runs the app in the working directory by default', async () => {
   expect(renderApp).toHaveBeenCalledWith({
     root: process.cwd(),
     showCost: false,
+    showChanges: false,
   })
 })
 
@@ -77,6 +78,7 @@ test('wizard: runs the app in the given directory', async () => {
   expect(renderApp).toHaveBeenCalledWith({
     root: '/tmp/example-project',
     showCost: false,
+    showChanges: false,
   })
 })
 
@@ -85,6 +87,16 @@ test('wizard: passes showCost when --show-cost is given', async () => {
   expect(renderApp).toHaveBeenCalledWith({
     root: '/tmp/example-project',
     showCost: true,
+    showChanges: false,
+  })
+})
+
+test('wizard: passes showChanges when --show-changes is given', async () => {
+  await wizard({ argv: ['--show-changes'], cwd: '/tmp/example-project' })
+  expect(renderApp).toHaveBeenCalledWith({
+    root: '/tmp/example-project',
+    showCost: false,
+    showChanges: true,
   })
 })
 

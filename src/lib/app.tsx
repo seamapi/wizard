@@ -111,10 +111,12 @@ type Phase =
 export function App({
   root,
   showCost = false,
+  showChanges = false,
   onExit,
 }: {
   root: string
   showCost?: boolean
+  showChanges?: boolean
   onExit?: (lines: string[]) => void
 }): ReactElement {
   const { exit } = useApp()
@@ -181,19 +183,17 @@ export function App({
   // Mirrors integrateElapsedSec so the done event can read the final elapsed
   // time without a stale closure (the tick updates state, not this handler).
   const integrateElapsedRef = useRef(0)
+  // The final outcome + the agent's file summary, captured on the done event so
+  // the exit report reads them directly (state is batched/async at that point).
+  const finalResultRef = useRef<IntegrationOutcome | null>(null)
+  const finalSummaryRef = useRef('')
 
-  // Kept in sync with `messages` so the exit handler can hand the full
-  // transcript to index.tsx to reprint after leaving the alt screen.
-  const messagesRef = useRef<Msg[]>([])
   const addMessage = (message: Msg): void =>
-    setMessages((previous) => {
-      const next = [...previous, message]
-      messagesRef.current = next
-      return next
-    })
+    setMessages((previous) => [...previous, message])
 
+  // The final screen and the exit report carry the outcome + next steps now, so
+  // finishing is just moving to the done phase.
   const finishWithNextSteps = (): void => {
-    pushNextSteps(addMessage, sdk, workspace?.name ?? 'your workspace')
     setPhase({ t: 'done' })
   }
 
@@ -280,39 +280,18 @@ export function App({
       const doneCount = event.steps.filter(
         (step) => step.status === 'done',
       ).length
-      setFinalResult({
+      const outcome: IntegrationOutcome = {
         ok: event.ok,
         costUsd: event.cost_usd ?? null,
         elapsedSec: integrateElapsedRef.current,
         doneSteps: doneCount,
         totalSteps: event.steps.length,
-      })
-      const stepSuffix =
-        event.steps.length > 1
-          ? ` — ${doneCount}/${event.steps.length} steps completed`
-          : ''
-      addMessage(
-        event.ok
-          ? {
-              tone: 'ok',
-              text: `Integration written${stepSuffix} — review it with \`git diff\``,
-            }
-          : {
-              tone: 'warn',
-              text: `Agent stopped early${stepSuffix} — review what it changed with \`git diff\``,
-            },
-      )
-      for (const line of event.summary.trim().split('\n').slice(0, 15)) {
-        if (line.trim().length > 0) {
-          addMessage({ tone: 'plain', text: `  ${line}` })
-        }
       }
-      if (event.cost_usd != null) {
-        addMessage({
-          tone: 'info',
-          text: `Model cost: $${event.cost_usd.toFixed(2)}`,
-        })
-      }
+      setFinalResult(outcome)
+      // Captured in refs (not messages) so the final screen and the concise exit
+      // report render them; the full run log is not replayed on exit.
+      finalResultRef.current = outcome
+      finalSummaryRef.current = event.summary.trim()
     }
   }
 
@@ -823,8 +802,43 @@ export function App({
     }
   }, [stdout])
 
+  // What gets reprinted to the normal terminal after the alt screen closes: a
+  // concise report (status, time, next steps — cost/changes only behind flags),
+  // not a replay of the whole run log.
+  const buildExitReport = (): string[] => {
+    if (phase.t === 'error') return [`▲ ${phase.message}`]
+
+    const workspaceName = workspace?.name ?? 'your workspace'
+    const outcome = finalResultRef.current
+    const lines: string[] = []
+
+    if (outcome == null) {
+      lines.push(`✔ You're set up in ${workspaceName}`)
+    } else if (outcome.ok) {
+      lines.push(`✔ Integration written in ${workspaceName}`)
+    } else {
+      lines.push(`▲ Agent stopped early in ${workspaceName}`)
+    }
+    if (outcome != null) {
+      const stats =
+        `  ${outcome.doneSteps}/${outcome.totalSteps} steps · took ${formatDuration(outcome.elapsedSec)}` +
+        (showCost && outcome.costUsd != null
+          ? ` · $${outcome.costUsd.toFixed(2)}`
+          : '')
+      lines.push(stats)
+    }
+    lines.push('', ...nextStepsLines(sdk, workspaceName))
+    if (showChanges && finalSummaryRef.current.length > 0) {
+      lines.push('', 'What changed:')
+      for (const line of finalSummaryRef.current.split('\n')) {
+        lines.push(`  ${line}`)
+      }
+    }
+    return lines
+  }
+
   const finish = (): void => {
-    onExit?.(messagesRef.current.map(formatMessageLine))
+    onExit?.(buildExitReport())
     exit()
   }
 
@@ -838,9 +852,8 @@ export function App({
       process.exitCode = 1
     }
     if (phase.t === 'done' && isRawModeSupported) return
-    // Hand the transcript back so index.tsx can reprint it once the alt screen
-    // is torn down (its contents are otherwise discarded). Small delay lets the
-    // final addMessage above flush into messagesRef.
+    // Hand the exit report back so index.tsx can reprint it once the alt screen
+    // is torn down. Small delay lets the final state settle first.
     const id = setTimeout(finish, 40)
     return () => clearTimeout(id)
   }, [phase.t])
@@ -1212,24 +1225,25 @@ function projectKeyLabel(
 
 // Said only of what the login actually is: a token the wizard cannot hand to
 // a project, or one it could not verify.
-function pushNextSteps(
-  addMessage: (message: Msg) => void,
-  sdk: Sdk | null,
-  workspaceName: string,
-): void {
+function nextStepsLines(sdk: Sdk | null, workspaceName: string): string[] {
   const envHint =
     sdk === 'python'
       ? "Make sure SEAM_API_KEY is exported (it's in .env)."
       : 'Your key is in .env (git ignored); .env.example tells the rest of your team what to set.'
-  addMessage({ tone: 'plain', text: '' })
-  addMessage({ tone: 'ok', text: `You're set up in ${workspaceName}` })
-  addMessage({ tone: 'plain', text: 'Next steps:' })
-  addMessage({
-    tone: 'plain',
-    text: '  1. Describe your integration to your AI assistant — e.g. "add Seam access grants". The Seam skill will guide it.',
-  })
-  addMessage({ tone: 'plain', text: `  2. ${envHint}` })
-  addMessage({ tone: 'plain', text: '  3. Docs: https://docs.seam.co' })
+  return [
+    `You're set up in ${workspaceName}`,
+    'Next steps:',
+    '  1. Describe your integration to your AI assistant — e.g. "add Seam access grants". The Seam skill will guide it.',
+    `  2. ${envHint}`,
+    '  3. Docs: https://docs.seam.co',
+  ]
+}
+
+function formatDuration(totalSeconds: number): string {
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  if (minutes === 0) return `${seconds}s`
+  return `${minutes}m ${String(seconds).padStart(2, '0')}s`
 }
 
 function truncate(text: string, maxLength: number): string {
@@ -1256,15 +1270,6 @@ function formatTool(name: string, detail: string): string {
                 ? 'docs'
                 : name
   return detail.length > 0 ? `${verb} ${truncate(detail, 60)}` : verb
-}
-
-// Plain-text rendering of a message, matching MessageLine's symbols — used to
-// reprint the transcript into the normal terminal after the alt screen closes.
-function formatMessageLine(message: Msg): string {
-  if (message.tone === 'plain') return message.text
-  const symbol =
-    message.tone === 'ok' ? '✔' : message.tone === 'warn' ? '▲' : '•'
-  return `${symbol} ${message.text}`
 }
 
 function MessageLine({ message }: { message: Msg }): ReactElement {

@@ -49,7 +49,7 @@ const wizard = async (options: WizardOptions = {}): Promise<void> => {
   if (options.adapter != null) setAdapter(options.adapter)
 
   const args = parseArgs([...argv], {
-    boolean: ['help', 'version', 'show-cost'],
+    boolean: ['help', 'version', 'show-cost', 'show-changes'],
     string: ['debug-screen'],
     alias: { h: 'help', v: 'version' },
   })
@@ -74,7 +74,11 @@ const wizard = async (options: WizardOptions = {}): Promise<void> => {
 
   await loadAuth()
 
-  await renderApp({ root: cwd, showCost: args['show-cost'] === true })
+  await renderApp({
+    root: cwd,
+    showCost: args['show-cost'] === true,
+    showChanges: args['show-changes'] === true,
+  })
 }
 
 export default wizard
@@ -97,6 +101,7 @@ const usage = (commandName: string): string =>
     '  -h, --help            Display this help guide.',
     '  -v, --version         Display the version.',
     '  --show-cost           Show the model cost on the final screen.',
+    '  --show-changes        List the files the integration changed on exit.',
     '  --debug-screen [name] Preview a screen (dev). Omit name to choose one.',
     '',
   ].join('\n')

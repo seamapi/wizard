@@ -13,6 +13,8 @@ export interface RenderAppOptions {
   root: string
   /** Show the model cost on the final screen (off by default). */
   showCost?: boolean
+  /** List the files the integration changed on exit (off by default). */
+  showChanges?: boolean
 }
 
 /**
@@ -29,6 +31,7 @@ export interface RenderAppOptions {
 export const renderApp = async ({
   root,
   showCost = false,
+  showChanges = false,
 }: RenderAppOptions): Promise<void> => {
   const isTty = Boolean(process.stdout.isTTY)
   if (isTty) process.stdout.write(ENTER_ALT_SCREEN)
@@ -39,6 +42,7 @@ export const renderApp = async ({
     <App
       root={root}
       showCost={showCost}
+      showChanges={showChanges}
       onExit={(lines) => {
         transcript = lines
       }}
