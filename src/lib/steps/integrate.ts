@@ -149,6 +149,7 @@ export async function runIntegration(args: RunIntegrationArgs): Promise<void> {
           maxBudgetUsd: remainingBudgetUsd,
           systemAppend,
           agentEnv,
+          inference,
           signal,
           abortController,
           onText: (text) => onEvent({ kind: 'text', text }),
