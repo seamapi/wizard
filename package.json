@@ -85,8 +85,7 @@
     "ink-spinner": "^5.0.0",
     "ink-text-input": "^6.0.0",
     "minimist": "^1.2.8",
-    "open": "^11.0.0",
-    "seam": "^1.232.1"
+    "open": "^11.0.0"
   },
   "devDependencies": {
     "@seamapi/cli": "^0.23.0",
