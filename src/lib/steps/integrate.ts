@@ -98,6 +98,10 @@ export async function runIntegration(args: RunIntegrationArgs): Promise<void> {
 
   const systemAppend = buildSystemAppend(sdk, workspaceName, framework, mode)
   const agentEnv = buildAgentEnv(inference)
+  // Customer Portal is the simple path (the app calls ~2 endpoints), so it runs
+  // on the faster Sonnet; full API control does more and runs on Opus.
+  const model =
+    mode === 'customer_portal' ? 'claude-sonnet-5' : 'claude-opus-4-8'
 
   let totalCostUsd = 0
   let allOk = true
@@ -157,9 +161,10 @@ export async function runIntegration(args: RunIntegrationArgs): Promise<void> {
           prompt: step.goal,
           options: {
             cwd: root,
-            // Run the integration agent on Opus 4.8. medium effort trims the
-            // thinking spend; maxBudgetUsd is the budget still left for this run.
-            model: 'claude-opus-4-8',
+            // Model is Opus (full API) or Sonnet (Customer Portal); medium
+            // effort trims the thinking spend; maxBudgetUsd is the budget still
+            // left for this run.
+            model,
             effort: 'medium',
             maxBudgetUsd: remainingBudgetUsd,
             env: agentEnv,
