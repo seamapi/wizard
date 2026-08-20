@@ -8,6 +8,9 @@ const files = ['**/*.{ts,tsx}']
 
 export default [
   globalIgnores(resolveIgnoresFromGitignore()),
+  // Eval fixtures are standalone sample apps (Next.js, etc.), not wizard
+  // source — they have their own deps/conventions and must not be linted here.
+  globalIgnores(['eval/fixtures/**']),
   ...neostandard({ ts: true, noStyle: true }),
   {
     files,
