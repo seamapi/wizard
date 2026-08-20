@@ -2,11 +2,15 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import type { BuildMode } from 'lib/steps/build-plan.js'
-import { exchangeWizardInferenceToken } from 'lib/util/seam-api.js'
+import {
+  exchangeWizardInferenceToken,
+  getInferenceBaseUrl,
+} from 'lib/util/seam-api.js'
 
 import { createRealRunner } from './real-runner.js'
 import { formatReport } from './report.js'
 import { runCase } from './run-case.js'
+import { createLlmJudge } from './score.js'
 import type { CaseResult, EvalCase, FixtureConfig } from './types.js'
 
 // Where the fixture apps live (top-level, so tsc doesn't compile them).
@@ -37,6 +41,10 @@ async function main(): Promise<void> {
 
   const session = await exchangeWizardInferenceToken(apiKey)
   const runner = createRealRunner(session.token)
+  const scorer = createLlmJudge({
+    base_url: getInferenceBaseUrl(),
+    token: session.token,
+  })
   const controller = new AbortController()
 
   const results: CaseResult[] = []
@@ -51,6 +59,7 @@ async function main(): Promise<void> {
         config,
         signal: controller.signal,
         runner,
+        scorer,
         now: () => Date.now(),
       })
       results.push(result)

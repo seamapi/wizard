@@ -1,4 +1,7 @@
+import { composeGoal } from 'lib/steps/build-plan.js'
+
 import { evaluateGates } from './gates.js'
+import type { Scorer } from './score.js'
 import type { CaseResult, EvalCase, FixtureConfig } from './types.js'
 import { captureDiff, prepareFixture } from './workspace.js'
 
@@ -30,8 +33,11 @@ export async function runCase(args: {
   signal: AbortSignal
   runner: CaseRunner
   now: () => number
+  // Optional quality scorer. When provided, it grades the diff; failures are
+  // swallowed so scoring never fails a case.
+  scorer?: Scorer
 }): Promise<CaseResult> {
-  const { fixtureDir, spec, config, signal, runner, now } = args
+  const { fixtureDir, spec, config, signal, runner, now, scorer } = args
   const workDir = prepareFixture(fixtureDir)
   const startedAt = now()
 
@@ -49,6 +55,16 @@ export async function runCase(args: {
   const elapsedSec = Math.round((now() - startedAt) / 1000)
   const { diff, changedFiles } = captureDiff(workDir)
 
+  let score
+  if (scorer != null && diff.length > 0) {
+    const goal = composeGoal({
+      mode: spec.mode,
+      note: null,
+      framework: config.framework,
+    })
+    score = await scorer({ goal, diff, mode: spec.mode }).catch(() => undefined)
+  }
+
   return {
     fixture: spec.fixture,
     mode: spec.mode,
@@ -59,6 +75,7 @@ export async function runCase(args: {
     changedFiles,
     diff,
     gates: evaluateGates({ changedFiles, diff }),
+    ...(score != null ? { score } : {}),
     ...(error != null ? { error } : {}),
   }
 }

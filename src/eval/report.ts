@@ -10,6 +10,7 @@ export function formatReport(results: CaseResult[]): string {
     pad('harness', 10),
     pad('ok', 4),
     pad('gates', 7),
+    pad('score', 6),
     pad('cost', 8),
     pad('time', 6),
   ].join(' ')
@@ -23,6 +24,7 @@ export function formatReport(results: CaseResult[]): string {
       pad(result.harness, 10),
       pad(result.ok ? 'yes' : 'no', 4),
       pad(`${gatesPassed}/${gatesTotal}`, 7),
+      pad(result.score == null ? 'n/a' : result.score.total.toFixed(2), 6),
       pad(result.costUsd == null ? 'n/a' : `$${result.costUsd.toFixed(2)}`, 8),
       pad(`${result.elapsedSec}s`, 6),
     ].join(' ')

@@ -78,3 +78,45 @@ test('runCase: records a thrown runner as an error, still captures gates', async
   expect(result.gates.seamImported).toBe(false)
   expect(result.changedFiles).toHaveLength(0)
 })
+
+test('runCase: attaches the scorer result when a diff is produced', async () => {
+  const fixtureDir = makeFixtureDir()
+  const result = await runCase({
+    fixtureDir,
+    spec: { fixture: 'demo', mode: 'full_api', harness: 'anthropic' },
+    config,
+    signal: new AbortController().signal,
+    now: fakeClock(),
+    runner: async (workDir) => {
+      writeFileSync(join(workDir, 'seam.ts'), "import { Seam } from 'seam'\n")
+      return { ok: true, costUsd: null }
+    },
+    scorer: async ({ diff }) => ({
+      total: diff.length > 0 ? 0.75 : 0,
+      dimensions: { extends_existing: 0.75 },
+    }),
+  })
+
+  expect(result.score?.total).toBe(0.75)
+})
+
+test('runCase: a thrown scorer never fails the case', async () => {
+  const fixtureDir = makeFixtureDir()
+  const result = await runCase({
+    fixtureDir,
+    spec: { fixture: 'demo', mode: 'full_api', harness: 'anthropic' },
+    config,
+    signal: new AbortController().signal,
+    now: fakeClock(),
+    runner: async (workDir) => {
+      writeFileSync(join(workDir, 'seam.ts'), "import { Seam } from 'seam'\n")
+      return { ok: true, costUsd: null }
+    },
+    scorer: async () => {
+      throw new Error('judge unavailable')
+    },
+  })
+
+  expect(result.ok).toBe(true)
+  expect(result.score).toBeUndefined()
+})

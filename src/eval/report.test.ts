@@ -43,6 +43,15 @@ test('formatReport: shows gate ratio, cost, ok, and n/a cost', () => {
   expect(report).toContain('no')
 })
 
+test('formatReport: shows the quality score when present, n/a otherwise', () => {
+  const report = formatReport([
+    { ...baseResult, score: { total: 0.82, dimensions: {} } },
+    baseResult,
+  ])
+  expect(report).toContain('score')
+  expect(report).toContain('0.82')
+})
+
 test('formatReport: is deterministic (no timestamps)', () => {
   expect(formatReport([baseResult])).toBe(formatReport([baseResult]))
 })

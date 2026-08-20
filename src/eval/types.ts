@@ -28,6 +28,13 @@ export interface GateResults {
   noStandalonePage: boolean
 }
 
+// A quality score from the judge: an overall 0–1 plus the per-dimension 0–1s
+// keyed by rubric dimension id.
+export interface ScoreResult {
+  total: number
+  dimensions: Record<string, number>
+}
+
 export interface CaseResult {
   fixture: string
   mode: BuildMode
@@ -39,6 +46,9 @@ export interface CaseResult {
   changedFiles: string[]
   diff: string
   gates: GateResults
+  // The judge's quality score, when scoring ran (best-effort — omitted if the
+  // judge was not provided or failed).
+  score?: ScoreResult
   // Set when the run threw before producing a result.
   error?: string
 }
