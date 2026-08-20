@@ -59,7 +59,8 @@
     "format": "prettier --write --ignore-path .gitignore .",
     "preformat": "eslint --fix .",
     "report": "vitest run --coverage",
-    "screen": "tsx src/bin/screen.ts"
+    "screen": "tsx src/bin/screen.ts",
+    "eval": "tsx src/eval/run.ts"
   },
   "engines": {
     "node": ">=22.12.0",
