@@ -17,7 +17,7 @@ export type SeamWorkspace = Pick<
   'workspace_id' | 'name' | 'is_sandbox'
 >
 
-export class ApiKeyError extends Error { }
+export class ApiKeyError extends Error {}
 
 const getApi = (apiKey: string): SeamHttpWorkspaces =>
   new SeamHttpWorkspaces({ apiKey, endpoint: getApiBaseUrl() })
@@ -146,7 +146,7 @@ async function readTextDeltas(
   const decoder = new TextDecoder()
   let buffer = ''
   let text = ''
-  for (; ;) {
+  for (;;) {
     const { value, done } = await reader.read()
     if (done) break
     buffer += decoder.decode(value, { stream: true })
