@@ -59,14 +59,15 @@ export const piHarness: Harness = {
           name: modelId,
           api: 'anthropic-messages',
           baseUrl: inference.base_url,
-          // Must be false: pi-ai emits the deprecated `thinking:{type:'enabled',
-          // budget_tokens}` for reasoning models, which Opus 4.8 / Sonnet 5
-          // reject with a 400 (they only accept `thinking:{type:'adaptive'}`).
-          // With reasoning on, every request errored server-side → 0 tool calls,
-          // empty diff. Off means no extended thinking on the pi path, but the
-          // requests succeed. (The anthropic control uses the SDK's adaptive form;
-          // thinking parity needs a newer pi-ai.)
-          reasoning: false,
+          reasoning: true,
+          // forceAdaptiveThinking: send `thinking:{type:'adaptive'}` +
+          // output_config.effort (what Opus 4.8 / Sonnet 5 require) instead of
+          // pi-ai's default deprecated `thinking:{type:'enabled',budget_tokens}`,
+          // which those models reject with a 400 — matching the anthropic
+          // control's adaptive thinking. supportsTemperature:false because Opus
+          // 4.7+ rejects a non-default temperature. Both mirror how pi-ai's own
+          // built-in anthropic-messages models are configured.
+          compat: { forceAdaptiveThinking: true, supportsTemperature: false },
           input: ['text'],
           cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
           contextWindow: 1_000_000,
@@ -133,6 +134,8 @@ export const piHarness: Harness = {
     const { session } = await createAgentSession({
       model,
       modelRegistry: registry,
+      // Adaptive-thinking effort, matching the anthropic control's medium effort.
+      thinkingLevel: 'medium',
       cwd,
       sessionManager: SessionManager.inMemory(cwd),
       resourceLoader,
