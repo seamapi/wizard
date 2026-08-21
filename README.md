@@ -121,6 +121,8 @@ $ npm install
 $ npm run test:watch
 ```
 
+See [`TESTING.md`](TESTING.md) for test placement and boundary rules.
+
 Run the wizard locally against a project with
 
 ```
@@ -157,8 +159,6 @@ The wizard is an [Ink] application under `src/lib`:
 - `app.tsx` is the state machine driving the run,
   one phase per step, and holds all of the rendering.
 - `steps/` holds the logic for each step, with no UI in it.
-- `util/` holds the Seam API client, dotenv handling,
-  and the subprocess runner.
 - `version.ts` holds the package version reported by `--version`.
   It ships a `0.0.0` placeholder that `prepack.ts` replaces with the
   version from `package.json` when the package is packed,

@@ -1,11 +1,11 @@
 import { getAuth } from 'lib/adapter.js'
+import { fingerprintApiKey } from 'lib/api-key.js'
+import type { SeamWorkspace } from 'lib/seam-api.js'
 import {
   type ConnectionSource,
   type ProjectConnection,
   recordConnection,
 } from 'lib/store/index.js'
-import { fingerprintApiKey } from 'lib/util/api-key.js'
-import type { SeamWorkspace } from 'lib/util/seam-api.js'
 
 export type ConnectionChange =
   | { what: 'api_key'; from: string; to: string }

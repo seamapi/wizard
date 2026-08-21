@@ -6,8 +6,7 @@ import {
   resetAdapter,
   setAdapter,
 } from 'lib/adapter.js'
-
-import { readPreferredSdk, writePreferredSdk } from './config-store.js'
+import { readPreferredSdk, writePreferredSdk } from 'lib/store/config-store.js'
 
 beforeEach(() => {
   setAdapter(createMemoryAdapter())

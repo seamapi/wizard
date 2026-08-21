@@ -1,6 +1,6 @@
+import { getInferenceBaseUrl } from 'lib/seam-api.js'
 import { buildIntegrationSteps } from 'lib/steps/build-plan.js'
 import { runIntegration } from 'lib/steps/integrate.js'
-import { getInferenceBaseUrl } from 'lib/util/seam-api.js'
 
 import type { CaseRunner } from './run-case.js'
 

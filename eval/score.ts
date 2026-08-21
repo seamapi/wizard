@@ -1,5 +1,5 @@
+import { callInferenceForText } from 'lib/seam-api.js'
 import type { BuildMode } from 'lib/steps/build-plan.js'
-import { callInferenceForText } from 'lib/util/seam-api.js'
 
 import { getRubric, type RubricDimension } from './rubric.js'
 import type { ScoreResult } from './types.js'

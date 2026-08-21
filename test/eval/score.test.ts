@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 
-import { getRubric } from './rubric.js'
-import { parseJudgeResponse } from './score.js'
+import { getRubric } from 'eval/rubric.js'
+import { parseJudgeResponse } from 'eval/score.js'
 
 test('getRubric: full_api includes the reservation→grant dimension', () => {
   const ids = getRubric('full_api').map((dimension) => dimension.id)

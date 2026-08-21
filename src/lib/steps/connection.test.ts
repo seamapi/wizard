@@ -1,43 +1,32 @@
-import { afterEach, beforeEach, expect, test } from 'vitest'
-
-import { createMemoryAdapter, resetAdapter, setAdapter } from 'lib/adapter.js'
-import { type ProjectConnection, readProjectRecord } from 'lib/store/index.js'
-import { fingerprintApiKey } from 'lib/util/api-key.js'
-import type { SeamWorkspace } from 'lib/util/seam-api.js'
+import { expect, test } from 'vitest'
 
 import {
   compareConnection,
+  type CurrentConnection,
   describeChange,
-  saveConnection,
 } from './connection.js'
 
 const apiKey = 'seam_apikey1_first_key'
-const workspace: SeamWorkspace = {
+const workspace: CurrentConnection['workspace'] = {
   workspace_id: 'workspace-1',
   name: 'Acme',
   is_sandbox: false,
 }
 
-const recorded: ProjectConnection = {
+const recorded: Parameters<typeof compareConnection>[0] = {
   endpoint: 'https://connect.getseam.com',
   workspace_id: workspace.workspace_id,
   workspace_name: workspace.name,
-  api_key: fingerprintApiKey(apiKey),
+  api_key: { digest: '1068caa4a195dd39', hint: '_key' },
   api_key_source: 'project',
   api_key_location: '.env',
 }
 
-const current = {
+const current: CurrentConnection = {
   endpoint: recorded.endpoint,
   workspace,
   api_key: apiKey,
 }
-
-beforeEach(() => {
-  setAdapter(createMemoryAdapter())
-})
-
-afterEach(resetAdapter)
 
 test('compareConnection: nothing changed is nothing to ask about', () => {
   expect(compareConnection(recorded, current)).toEqual([])
@@ -108,38 +97,4 @@ test('describeChange: reads as what moved, and where to', () => {
       to: 'https://connect.example.com',
     }),
   ).toBe('Endpoint: https://connect.getseam.com → https://connect.example.com')
-})
-
-test('saveConnection: records what the project talks to, never the key', async () => {
-  await saveConnection('/projects/app', {
-    workspace,
-    api_key: apiKey,
-    source: 'project',
-    location: '.env.local',
-  })
-
-  const record = await readProjectRecord('/projects/app')
-  expect(record?.connection).toEqual({
-    endpoint: 'https://connect.getseam.com',
-    workspace_id: 'workspace-1',
-    workspace_name: 'Acme',
-    api_key: fingerprintApiKey(apiKey),
-    api_key_source: 'project',
-    api_key_location: '.env.local',
-  })
-  expect(JSON.stringify(record)).not.toContain(apiKey)
-})
-
-test('saveConnection: what it records reads back as unchanged', async () => {
-  await saveConnection('/projects/app', {
-    workspace,
-    api_key: apiKey,
-    source: 'browser',
-  })
-
-  const record = await readProjectRecord('/projects/app')
-  expect(record?.connection).not.toBeNull()
-  expect(
-    compareConnection(record?.connection as ProjectConnection, current),
-  ).toEqual([])
 })

@@ -1,6 +1,6 @@
 import { getAuth } from 'lib/adapter.js'
-import { findExistingApiKey, saveProjectApiKey } from 'lib/util/env-file.js'
-import { getWorkspaceForApiKey, type SeamWorkspace } from 'lib/util/seam-api.js'
+import { findExistingApiKey, saveProjectApiKey } from 'lib/env-file.js'
+import { getWorkspaceForApiKey, type SeamWorkspace } from 'lib/seam-api.js'
 
 export interface AuthResult {
   workspace: SeamWorkspace

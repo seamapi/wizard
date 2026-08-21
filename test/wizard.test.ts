@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
-import { createMemoryAdapter, getAuth, resetAdapter } from './adapter.js'
-import { renderApp } from './render.js'
-import seamapiWizardVersion from './version.js'
-import wizard from './wizard.js'
+import { createMemoryAdapter, getAuth, resetAdapter } from 'lib/adapter.js'
+import { renderApp } from 'lib/render.js'
+import seamapiWizardVersion from 'lib/version.js'
+import wizard from 'lib/wizard.js'
 
-vi.mock('./render.js', () => ({ renderApp: vi.fn() }))
+vi.mock('lib/render.js', () => ({ renderApp: vi.fn() }))
 
 beforeEach(() => {
   vi.mocked(renderApp).mockClear()

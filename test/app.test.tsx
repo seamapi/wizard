@@ -1,8 +1,8 @@
 import { render } from 'ink-testing-library'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
-import { createMemoryAdapter, resetAdapter, setAdapter } from './adapter.js'
-import { App } from './app.js'
+import { createMemoryAdapter, resetAdapter, setAdapter } from 'lib/adapter.js'
+import { App } from 'lib/app.js'
 
 // A project root that does not exist, with no key in the environment, keeps the
 // render offline: the wizard opens on the welcome splash and only leaves it on a
