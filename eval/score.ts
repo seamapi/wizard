@@ -1,4 +1,4 @@
-import { callInferenceForText } from 'lib/seam-api.js'
+import { callInferenceForText } from 'lib/api.js'
 import type { BuildMode } from 'lib/steps/build-plan.js'
 
 import { getRubric, type RubricDimension } from './rubric.js'

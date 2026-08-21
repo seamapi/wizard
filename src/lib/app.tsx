@@ -11,6 +11,14 @@ import {
 } from 'react'
 
 import { getAuth } from './adapter.js'
+import {
+  ApiKeyError,
+  exchangeWizardInferenceToken,
+  getInferenceBaseUrl,
+  looksLikeSeamApiKey,
+  type SeamWorkspace,
+  type WizardInferenceSession,
+} from './api.js'
 import { ensureProjectEnvConventions, findExistingApiKey } from './env-file.js'
 import { runInstall } from './run-install.js'
 import { AnalyzeScreen } from './screens/analyze.js'
@@ -24,14 +32,6 @@ import { IntegrationModeScreen } from './screens/integration-mode.js'
 import { NoteScreen } from './screens/note.js'
 import { SetupProgress } from './screens/setup-progress.js'
 import { WelcomeScreen } from './screens/welcome.js'
-import {
-  ApiKeyError,
-  exchangeWizardInferenceToken,
-  getInferenceBaseUrl,
-  looksLikeSeamApiKey,
-  type SeamWorkspace,
-  type WizardInferenceSession,
-} from './seam-api.js'
 import {
   analyzeProject,
   type ProjectAnalysis,

@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, expect, test } from 'vitest'
 
 import { createMemoryAdapter, resetAdapter, setAdapter } from 'lib/adapter.js'
+import type { SeamWorkspace } from 'lib/api.js'
 import { fingerprintApiKey } from 'lib/api-key.js'
-import type { SeamWorkspace } from 'lib/seam-api.js'
 import { compareConnection, saveConnection } from 'lib/steps/connection.js'
 import { type ProjectConnection, readProjectRecord } from 'lib/store/index.js'
 
