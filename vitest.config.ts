@@ -4,6 +4,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@seamapi/wizard': new URL('./src/index.ts', import.meta.url).pathname,
+      eval: new URL('./eval', import.meta.url).pathname,
       lib: new URL('./src/lib', import.meta.url).pathname,
     },
   },
@@ -20,6 +21,7 @@ export default defineConfig({
       reporter: ['html', 'lcov', 'text'],
     },
     include: [
+      'eval/**/*.test.ts',
       'src/**/*.test.ts',
       'src/**/*.test.tsx',
       'test/**/*.test.ts',

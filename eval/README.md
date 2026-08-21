@@ -17,9 +17,8 @@ For each fixture × mode (`full_api`, `customer_portal`):
 3. Capture the diff, cost, and elapsed time.
 4. Apply deterministic **gates** (build-free): `.env` untouched, `seam`
    imported, no standalone Seam-only page.
-5. Print an A/B-ready table.
-
-Quality **scoring** (LLM-judge over the diff) is layered on next.
+5. Score the diff against the mode's rubric with an LLM judge.
+6. Print an A/B-ready table.
 
 ## Running it
 

@@ -4,8 +4,8 @@ import { join } from 'node:path'
 
 import { afterEach, expect, test } from 'vitest'
 
-import { runCase } from './run-case.js'
-import type { FixtureConfig } from './types.js'
+import { runCase } from 'eval/run-case.js'
+import type { FixtureConfig } from 'eval/types.js'
 
 const config: FixtureConfig = {
   name: 'demo',

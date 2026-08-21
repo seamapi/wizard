@@ -26,12 +26,14 @@
     "types": ["node"],
     "paths": {
       "@seamapi/wizard": ["./src/index.ts"],
+      "eval/*": ["./eval/*"],
       "lib/*": ["./src/lib/*"],
       "test/*": ["./test/*"]
     }
   },
   "files": ["src/index.ts", "src/bin/cli.ts"],
   "include": [
+    "eval/*.ts",
     "src/**/*",
     "test/**/*",
     "eslint.config.ts",

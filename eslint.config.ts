@@ -90,7 +90,7 @@ export default [
             ['^node:'],
             ['^@?\\w'],
             ['@seamapi/wizard'],
-            ['^lib/', '^test/'],
+            ['^eval/', '^lib/', '^test/'],
             ['^'],
             ['^\\.'],
           ],
