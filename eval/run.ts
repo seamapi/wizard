@@ -1,10 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import {
-  exchangeWizardInferenceToken,
-  getInferenceBaseUrl,
-} from 'lib/seam-api.js'
+import { exchangeWizardInferenceToken, getInferenceBaseUrl } from 'lib/api.js'
 import type { BuildMode } from 'lib/steps/build-plan.js'
 
 import { createRealRunner } from './real-runner.js'

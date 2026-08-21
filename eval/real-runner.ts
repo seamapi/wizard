@@ -1,4 +1,4 @@
-import { getInferenceBaseUrl } from 'lib/seam-api.js'
+import { getInferenceBaseUrl } from 'lib/api.js'
 import { buildIntegrationSteps } from 'lib/steps/build-plan.js'
 import { runIntegration } from 'lib/steps/integrate.js'
 

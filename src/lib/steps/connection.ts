@@ -1,6 +1,6 @@
 import { getAuth } from 'lib/adapter.js'
+import type { SeamWorkspace } from 'lib/api.js'
 import { fingerprintApiKey } from 'lib/api-key.js'
-import type { SeamWorkspace } from 'lib/seam-api.js'
 import {
   type ConnectionSource,
   type ProjectConnection,

@@ -1,59 +1,50 @@
-// Minimal Seam API access used to validate a pasted API key. We deliberately
-// avoid pulling in the full SDK just for a health check — a single fetch keeps
-// the wizard's install footprint tiny.
+import {
+  isSeamHttpApiError,
+  isSeamHttpUnauthorizedError,
+  SeamHttpInvalidTokenError,
+  SeamHttpWorkspaces,
+  type Workspace,
+} from '@seamapi/http'
 
 import { getAuth } from 'lib/adapter.js'
 
-// Whichever server the host is pointed at.
-export function getSeamApiBaseUrl(): string {
+export function getApiBaseUrl(): string {
   return getAuth().endpoint.replace(/\/+$/, '')
 }
 
-export interface SeamWorkspace {
-  workspace_id: string
-  name: string
-  is_sandbox: boolean
-}
+export type SeamWorkspace = Pick<
+  Workspace,
+  'workspace_id' | 'name' | 'is_sandbox'
+>
 
 export class ApiKeyError extends Error {}
 
-// Validates the key by fetching the workspace it belongs to. Returns the
-// workspace so the wizard can show which workspace the key is for.
+const getApi = (apiKey: string): SeamHttpWorkspaces =>
+  new SeamHttpWorkspaces({ apiKey, endpoint: getApiBaseUrl() })
+
 export async function getWorkspaceForApiKey(
   apiKey: string,
 ): Promise<SeamWorkspace> {
-  let response: Response
   try {
-    response = await fetch(`${getSeamApiBaseUrl()}/workspaces/get`, {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${apiKey}`,
-        'content-type': 'application/json',
-      },
-      body: '{}',
-    })
-  } catch {
+    return await getApi(apiKey).get()
+  } catch (error) {
+    if (
+      error instanceof SeamHttpInvalidTokenError ||
+      isSeamHttpUnauthorizedError(error)
+    ) {
+      throw new ApiKeyError(
+        'That key was rejected (401). Make sure you copied the full key, including the seam_ prefix.',
+      )
+    }
+    if (isSeamHttpApiError(error)) {
+      throw new ApiKeyError(
+        `The Seam API returned ${error.statusCode}. Please try again in a moment.`,
+      )
+    }
     throw new ApiKeyError(
       'Could not reach the Seam API. Check your network connection and try again.',
     )
   }
-
-  if (response.status === 401) {
-    throw new ApiKeyError(
-      'That key was rejected (401). Make sure you copied the full key, including the seam_ prefix.',
-    )
-  }
-  if (!response.ok) {
-    throw new ApiKeyError(
-      `The Seam API returned ${response.status}. Please try again in a moment.`,
-    )
-  }
-
-  const body = (await response.json()) as { workspace?: SeamWorkspace }
-  if (body.workspace == null) {
-    throw new ApiKeyError('Unexpected response from the Seam API.')
-  }
-  return body.workspace
 }
 
 export function looksLikeSeamApiKey(value: string): boolean {
@@ -63,7 +54,7 @@ export function looksLikeSeamApiKey(value: string): boolean {
 // Base URL for Seam-hosted inference. The embedded agent's SDK appends
 // /v1/messages; the exchange endpoint below lives at /session.
 export function getInferenceBaseUrl(): string {
-  return `${getSeamApiBaseUrl()}/internal/wizard_inference`
+  return `${getApiBaseUrl()}/internal/wizard_inference`
 }
 
 // The Console-collected onboarding answers Seam returns alongside the token, so
@@ -89,41 +80,31 @@ export interface WizardInferenceSession {
 export async function exchangeWizardInferenceToken(
   apiKey: string,
 ): Promise<WizardInferenceSession> {
-  let response: Response
   try {
-    response = await fetch(`${getInferenceBaseUrl()}/session`, {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${apiKey}`,
-        'content-type': 'application/json',
-      },
-      body: '{}',
-    })
-  } catch {
+    const { data: body } = await getApi(apiKey).client.post<{
+      wizard_session?: { token: string; expires_at: string }
+      onboarding?: WizardOnboarding | null
+    }>('/internal/wizard_inference/session', {})
+    if (body.wizard_session == null) {
+      throw new ApiKeyError(
+        'Unexpected response from Seam starting the AI session.',
+      )
+    }
+    return {
+      token: body.wizard_session.token,
+      expires_at: body.wizard_session.expires_at,
+      onboarding: body.onboarding ?? null,
+    }
+  } catch (error) {
+    if (error instanceof ApiKeyError) throw error
+    if (isSeamHttpApiError(error)) {
+      throw new ApiKeyError(
+        `Seam couldn't start the AI session (${error.statusCode}). Please try again in a moment.`,
+      )
+    }
     throw new ApiKeyError(
       'Could not reach Seam to start the AI session. Check your network connection and try again.',
     )
-  }
-
-  if (!response.ok) {
-    throw new ApiKeyError(
-      `Seam couldn't start the AI session (${response.status}). Please try again in a moment.`,
-    )
-  }
-
-  const body = (await response.json()) as {
-    wizard_session?: { token: string; expires_at: string }
-    onboarding?: WizardOnboarding | null
-  }
-  if (body.wizard_session == null) {
-    throw new ApiKeyError(
-      'Unexpected response from Seam starting the AI session.',
-    )
-  }
-  return {
-    token: body.wizard_session.token,
-    expires_at: body.wizard_session.expires_at,
-    onboarding: body.onboarding ?? null,
   }
 }
 

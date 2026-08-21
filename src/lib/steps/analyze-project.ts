@@ -1,8 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { callInferenceForText, type WizardOnboarding } from 'lib/api.js'
 import { findExistingApiKey } from 'lib/env-file.js'
-import { callInferenceForText, type WizardOnboarding } from 'lib/seam-api.js'
 
 import type { BuildMode } from './build-plan.js'
 import type { ProjectInfo, Sdk } from './detect-project.js'
