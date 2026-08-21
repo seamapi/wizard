@@ -10,6 +10,8 @@ import { captureDiff, prepareFixture } from './workspace.js'
 export interface RunOutcome {
   ok: boolean
   costUsd: number | null
+  // Why the run failed, when the runner caught a reason rather than throwing.
+  error?: string
 }
 
 export interface RunContext {
@@ -48,6 +50,7 @@ export async function runCase(args: {
     const outcome = await runner(workDir, spec, { config, signal })
     ok = outcome.ok
     costUsd = outcome.costUsd
+    error = outcome.error
   } catch (caught) {
     error = caught instanceof Error ? caught.message : String(caught)
   }

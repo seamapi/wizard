@@ -100,6 +100,25 @@ test('runCase: attaches the scorer result when a diff is produced', async () => 
   expect(result.score?.total).toBe(0.75)
 })
 
+test('runCase: surfaces a runner-reported error (no throw)', async () => {
+  const fixtureDir = makeFixtureDir()
+  const result = await runCase({
+    fixtureDir,
+    spec: { fixture: 'demo', mode: 'full_api', harness: 'pi' },
+    config,
+    signal: new AbortController().signal,
+    now: fakeClock(),
+    runner: async () => ({
+      ok: false,
+      costUsd: null,
+      error: "Cannot find module 'typebox'",
+    }),
+  })
+
+  expect(result.ok).toBe(false)
+  expect(result.error).toBe("Cannot find module 'typebox'")
+})
+
 test('runCase: a thrown scorer never fails the case', async () => {
   const fixtureDir = makeFixtureDir()
   const result = await runCase({
