@@ -59,7 +59,14 @@ export const piHarness: Harness = {
           name: modelId,
           api: 'anthropic-messages',
           baseUrl: inference.base_url,
-          reasoning: true,
+          // Must be false: pi-ai emits the deprecated `thinking:{type:'enabled',
+          // budget_tokens}` for reasoning models, which Opus 4.8 / Sonnet 5
+          // reject with a 400 (they only accept `thinking:{type:'adaptive'}`).
+          // With reasoning on, every request errored server-side → 0 tool calls,
+          // empty diff. Off means no extended thinking on the pi path, but the
+          // requests succeed. (The anthropic control uses the SDK's adaptive form;
+          // thinking parity needs a newer pi-ai.)
+          reasoning: false,
           input: ['text'],
           cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
           contextWindow: 1_000_000,
