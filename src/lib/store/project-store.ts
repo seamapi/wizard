@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto'
 import { basename, resolve } from 'node:path'
 
 import { getAdapter } from 'lib/adapter.js'
+import type { ApiKeyFingerprint } from 'lib/api-key.js'
 import type { BuildMode } from 'lib/steps/build-plan.js'
-import type { ApiKeyFingerprint } from 'lib/util/api-key.js'
 
 export type ConnectionSource = 'project' | 'cli' | 'browser' | 'pasted'
 
