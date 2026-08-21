@@ -26,7 +26,8 @@
     "types": ["node"],
     "paths": {
       "@seamapi/wizard": ["./src/index.ts"],
-      "lib/*": ["./src/lib/*"]
+      "lib/*": ["./src/lib/*"],
+      "test/*": ["./test/*"]
     }
   },
   "files": ["src/index.ts", "src/bin/cli.ts"],

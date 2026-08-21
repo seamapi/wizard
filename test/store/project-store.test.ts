@@ -6,7 +6,6 @@ import {
   resetAdapter,
   setAdapter,
 } from 'lib/adapter.js'
-
 import {
   getProjectKey,
   type ProjectConnection,
@@ -15,7 +14,7 @@ import {
   recordConnection,
   recordPlan,
   recordResult,
-} from './project-store.js'
+} from 'lib/store/project-store.js'
 
 beforeEach(() => {
   setAdapter(createMemoryAdapter())

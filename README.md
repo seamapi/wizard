@@ -121,6 +121,8 @@ $ npm install
 $ npm run test:watch
 ```
 
+See [`TESTING.md`](TESTING.md) for test placement and boundary rules.
+
 Run the wizard locally against a project with
 
 ```
