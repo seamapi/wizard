@@ -25,11 +25,18 @@ test('uses the workspace SDK and its raw client', async () => {
     name: 'Test',
     is_sandbox: true,
   }
+  const onboarding = {
+    org_type: 'startup',
+    primary_goal: null,
+    use_case: null,
+    build_target: null,
+    embed_customer_portal: null,
+    device_categories: ['locks'],
+  }
   get.mockResolvedValue(workspace)
   post.mockResolvedValue({
     data: {
-      wizard_session: { token: 'token', expires_at: 'tomorrow' },
-      onboarding: null,
+      wizard_session: { token: 'token', expires_at: 'tomorrow', onboarding },
     },
   })
 
@@ -37,7 +44,7 @@ test('uses the workspace SDK and its raw client', async () => {
   await expect(exchangeWizardInferenceToken('seam_key')).resolves.toEqual({
     token: 'token',
     expires_at: 'tomorrow',
-    onboarding: null,
+    onboarding,
   })
-  expect(post).toHaveBeenCalledWith('/internal/wizard_inference/session', {})
+  expect(post).toHaveBeenCalledWith('/seam/wizard/v1/session', {})
 })
