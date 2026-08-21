@@ -65,6 +65,18 @@ async function main(): Promise<void> {
 
   write('')
   write(formatReport(results))
+
+  // Surface why any case failed, so a `no` row is never a dead end.
+  const failures = results.filter((result) => result.error != null)
+  if (failures.length > 0) {
+    write('')
+    write('Failures:')
+    for (const failure of failures) {
+      write(
+        `  ${failure.fixture} · ${failure.mode} · ${failure.harness}: ${failure.error}`,
+      )
+    }
+  }
 }
 
 function readFixtureConfig(fixture: string): FixtureConfig {

@@ -18,6 +18,10 @@ export function createRealRunner(token: string): CaseRunner {
 
     let ok = false
     let costUsd: number | null = null
+    // The first step-failure reason — runIntegration catches per-step errors and
+    // reports them as events rather than throwing, so capture it here to surface
+    // why a case failed instead of leaving it a silent `no`.
+    let error: string | undefined
     await runIntegration({
       root: workDir,
       sdk: context.config.sdk,
@@ -28,12 +32,15 @@ export function createRealRunner(token: string): CaseRunner {
       mode: spec.mode,
       signal: context.signal,
       onEvent: (event) => {
+        if (event.kind === 'step_failed' && error == null) {
+          error = event.reason
+        }
         if (event.kind === 'done') {
           ok = event.ok
           costUsd = event.cost_usd
         }
       },
     })
-    return { ok, costUsd }
+    return { ok, costUsd, ...(error != null ? { error } : {}) }
   }
 }
