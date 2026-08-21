@@ -94,7 +94,7 @@
     "pi-mcp-adapter": "~2.15.0"
   },
   "devDependencies": {
-    "@seamapi/cli": "^0.23.0",
+    "@seamapi/cli": "^0.32.0",
     "@types/minimist": "^1.2.5",
     "@types/node": "^24.10.9",
     "@types/react": "^19.2.17",
