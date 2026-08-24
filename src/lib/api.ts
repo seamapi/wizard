@@ -52,12 +52,12 @@ export function looksLikeSeamApiKey(value: string): boolean {
 }
 
 // Base URL for Seam-hosted inference. The embedded agent's SDK appends
-// /v1/messages; the exchange endpoint below lives at /session.
+// /v1/messages; the exchange endpoint below lives at /v1/session.
 export function getInferenceBaseUrl(): string {
-  return `${getApiBaseUrl()}/internal/wizard_inference`
+  return `${getApiBaseUrl()}/seam/wizard`
 }
 
-// The Console-collected onboarding answers Seam returns alongside the token, so
+// The Console-collected onboarding answers Seam returns within the session, so
 // the wizard can pre-fill its plan instead of re-asking (null if none recorded).
 export interface WizardOnboarding {
   org_type: string | null
@@ -82,9 +82,12 @@ export async function exchangeWizardInferenceToken(
 ): Promise<WizardInferenceSession> {
   try {
     const { data: body } = await getApi(apiKey).client.post<{
-      wizard_session?: { token: string; expires_at: string }
-      onboarding?: WizardOnboarding | null
-    }>('/internal/wizard_inference/session', {})
+      wizard_session?: {
+        token: string
+        expires_at: string
+        onboarding?: WizardOnboarding | null
+      }
+    }>('/seam/wizard/v1/session', {})
     if (body.wizard_session == null) {
       throw new ApiKeyError(
         'Unexpected response from Seam starting the AI session.',
@@ -93,7 +96,7 @@ export async function exchangeWizardInferenceToken(
     return {
       token: body.wizard_session.token,
       expires_at: body.wizard_session.expires_at,
-      onboarding: body.onboarding ?? null,
+      onboarding: body.wizard_session.onboarding ?? null,
     }
   } catch (error) {
     if (error instanceof ApiKeyError) throw error
