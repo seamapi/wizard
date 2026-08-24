@@ -1,0 +1,23 @@
+# dependencies
+node_modules
+
+# sveltekit
+.svelte-kit
+/build
+
+# production output
+/dist
+
+# local sqlite dev database (auto-created on first run)
+*.db
+*.db-shm
+*.db-wal
+
+# env files — never commit real secrets; keep the example
+.env
+.env.*
+!.env.example
+
+# misc
+.DS_Store
+*.tsbuildinfo
