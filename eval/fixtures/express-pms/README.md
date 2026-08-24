@@ -4,7 +4,7 @@ A tiny property-management app built with [Express](https://expressjs.com/),
 `better-sqlite3` (raw SQL, no ORM), and EJS server-rendered views. It manages
 **spaces** (bookable rooms, suites, cabins…), takes **reservations** against
 them, and lists the **guests** who have booked. It is the Express counterpart of
-the Next.js `framework-pms` sample, with the same domain so the two exercise the
+the Next.js `nextjs-pms` sample, with the same domain so the two exercise the
 same integration.
 
 ## Getting started
