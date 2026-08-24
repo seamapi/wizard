@@ -1,6 +1,8 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import parseArgs from 'minimist'
+
 import { exchangeWizardInferenceToken, getInferenceBaseUrl } from 'lib/api.js'
 import type { BuildMode } from 'lib/steps/build-plan.js'
 
@@ -13,6 +15,16 @@ import type { CaseResult, EvalCase, FixtureConfig } from './types.js'
 // Where the fixture apps live (top-level, so tsc doesn't compile them).
 const FIXTURES_DIR = join(process.cwd(), 'eval', 'fixtures')
 const MODES: BuildMode[] = ['full_api', 'customer_portal']
+
+// Flatten a repeated/comma-separated CLI flag into a list of values.
+function toList(value: unknown): string[] {
+  const raw = Array.isArray(value) ? value : value == null ? [] : [value]
+  return raw
+    .filter((entry): entry is string => typeof entry === 'string')
+    .flatMap((entry) => entry.split(','))
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0)
+}
 
 // Run every fixture × mode on the active harness and print an A/B-ready table.
 // Needs SEAM_API_KEY (a dev key) to mint an inference token; the run makes real
@@ -27,11 +39,38 @@ async function main(): Promise<void> {
   }
 
   const harness = process.env['SEAM_WIZARD_HARNESS'] ?? 'anthropic'
-  const fixtures = readdirSync(FIXTURES_DIR, { withFileTypes: true })
+
+  // `--fixture a,b` / `--mode full_api` narrow the run to specific cases (each
+  // real case costs money + minutes), else run every fixture × mode.
+  const args = parseArgs(process.argv.slice(2), { string: ['fixture', 'mode'] })
+  const fixtureFilter = toList(args['fixture'])
+  const modeFilter = toList(args['mode'])
+
+  const allFixtures = readdirSync(FIXTURES_DIR, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
+  const fixtures =
+    fixtureFilter.length > 0
+      ? allFixtures.filter((fixture) => fixtureFilter.includes(fixture))
+      : allFixtures
+  const modes =
+    modeFilter.length > 0
+      ? MODES.filter((mode) => modeFilter.includes(mode))
+      : MODES
+
   if (fixtures.length === 0) {
-    write(`No fixtures found in ${FIXTURES_DIR}.`)
+    const detail =
+      fixtureFilter.length > 0
+        ? ` matching --fixture ${fixtureFilter.join(',')} (have: ${allFixtures.join(', ') || 'none'})`
+        : ` in ${FIXTURES_DIR}`
+    write(`No fixtures${detail}.`)
+    process.exitCode = 1
+    return
+  }
+  if (modes.length === 0) {
+    write(
+      `No modes matching --mode ${modeFilter.join(',')} (have: ${MODES.join(', ')}).`,
+    )
     process.exitCode = 1
     return
   }
@@ -47,7 +86,7 @@ async function main(): Promise<void> {
   const results: CaseResult[] = []
   for (const fixture of fixtures) {
     const config = readFixtureConfig(fixture)
-    for (const mode of MODES) {
+    for (const mode of modes) {
       const spec: EvalCase = { fixture, mode, harness }
       write(`▶ ${fixture} · ${mode} · ${harness}`)
       const result = await runCase({

@@ -1,6 +1,6 @@
 {
   "name": "@seamapi/wizard",
-  "version": "0.28.0",
+  "version": "0.36.0",
   "description": "The AI powered Seam setup wizard.",
   "type": "module",
   "main": "index.js",
@@ -50,13 +50,13 @@
     "test:watch": "vitest",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
     "lint": "eslint .",
-    "postlint": "prettier --check --ignore-path .gitignore .",
+    "postlint": "prettier --check --ignore-path .gitignore --ignore-path .prettierignore .",
     "prepack": "tsx ./prepack.ts",
     "postversion": "git push --follow-tags",
     "seam": "tsx src/bin/cli.ts",
     "wizard": "tsx src/bin/cli.ts wizard",
     "inspect": "tsx --inspect src/bin/cli.ts wizard",
-    "format": "prettier --write --ignore-path .gitignore .",
+    "format": "prettier --write --ignore-path .gitignore --ignore-path .prettierignore .",
     "preformat": "eslint --fix .",
     "report": "vitest run --coverage",
     "screen": "tsx src/bin/screen.ts",
@@ -98,7 +98,7 @@
     "typebox": "1.1.38"
   },
   "devDependencies": {
-    "@seamapi/cli": "^0.32.0",
+    "@seamapi/cli": "^0.34.0",
     "@types/minimist": "^1.2.5",
     "@types/node": "^24.10.9",
     "@types/react": "^19.2.17",

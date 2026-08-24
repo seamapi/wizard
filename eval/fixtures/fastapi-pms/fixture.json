@@ -1,0 +1,5 @@
+{
+  "name": "fastapi-pms",
+  "sdk": "python",
+  "framework": "FastAPI"
+}

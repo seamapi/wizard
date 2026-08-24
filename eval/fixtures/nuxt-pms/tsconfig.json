@@ -1,0 +1,5 @@
+{
+  // Nuxt generates the real config (with all aliases and auto-import types)
+  // into .nuxt/tsconfig.json after `nuxt prepare`. This file just extends it.
+  "extends": "./.nuxt/tsconfig.json"
+}

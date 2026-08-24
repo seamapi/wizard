@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Local SQLite dev database (auto-created on first run)
+*.db
+*.sqlite3
+*.db-shm
+*.db-wal
+
+# Flask instance folder (holds the local SQLite db, secrets, etc.)
+instance/
+
+# Environment (keep the example, ignore the real thing)
+.env
+.env.*
+!.env.example
+
+# macOS
+.DS_Store
