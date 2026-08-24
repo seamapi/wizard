@@ -10,6 +10,7 @@ import {
   type JsPackageManager,
   type ProjectInfo,
   type PythonInstaller,
+  type RubyInstaller,
 } from './detect-project.js'
 
 let dir = ''
@@ -31,6 +32,7 @@ const jsProject = (packageManager: JsPackageManager): ProjectInfo => ({
   detected_sdk: 'javascript',
   js_package_manager: packageManager,
   python_installer: 'pip',
+  ruby_installer: 'gem',
 })
 
 const pythonProject = (installer: PythonInstaller): ProjectInfo => ({
@@ -38,6 +40,23 @@ const pythonProject = (installer: PythonInstaller): ProjectInfo => ({
   detected_sdk: 'python',
   js_package_manager: 'npm',
   python_installer: installer,
+  ruby_installer: 'gem',
+})
+
+const rubyProject = (installer: RubyInstaller): ProjectInfo => ({
+  root: '/example',
+  detected_sdk: 'ruby',
+  js_package_manager: 'npm',
+  python_installer: 'pip',
+  ruby_installer: installer,
+})
+
+const phpProject = (): ProjectInfo => ({
+  root: '/example',
+  detected_sdk: 'php',
+  js_package_manager: 'npm',
+  python_installer: 'pip',
+  ruby_installer: 'gem',
 })
 
 test('detectProject: reports the given directory as the root', () => {
@@ -59,11 +78,44 @@ test.each(['pyproject.toml', 'requirements.txt', 'setup.py', 'Pipfile'])(
   },
 )
 
+test.each(['Gemfile', 'Gemfile.lock'])(
+  'detectProject: detects ruby from %s',
+  (marker) => {
+    touch(marker)
+
+    expect(detectProject(dir).detected_sdk).toBe('ruby')
+  },
+)
+
+test('detectProject: detects php from composer.json', () => {
+  touch('composer.json')
+
+  expect(detectProject(dir).detected_sdk).toBe('php')
+})
+
 test('detectProject: detects no sdk when javascript and python markers are both present', () => {
   touch('package.json')
   touch('requirements.txt')
 
   expect(detectProject(dir).detected_sdk).toBeNull()
+})
+
+test('detectProject: detects no sdk when several languages match', () => {
+  touch('package.json')
+  touch('Gemfile')
+  touch('composer.json')
+
+  expect(detectProject(dir).detected_sdk).toBeNull()
+})
+
+test('detectProject: detects the bundler ruby installer from a Gemfile', () => {
+  touch('Gemfile')
+
+  expect(detectProject(dir).ruby_installer).toBe('bundler')
+})
+
+test('detectProject: defaults to the gem ruby installer without a Gemfile', () => {
+  expect(detectProject(dir).ruby_installer).toBe('gem')
 })
 
 test('detectProject: detects no sdk when neither marker is present', () => {
@@ -170,12 +222,37 @@ test('installSeamSdkCommand: installs the python sdk with uv', () => {
   ])
 })
 
+test('installSeamSdkCommand: installs the ruby sdk with bundler', () => {
+  expect(installSeamSdkCommand('ruby', rubyProject('bundler'))).toEqual([
+    'bundle',
+    'add',
+    'seam',
+  ])
+})
+
+test('installSeamSdkCommand: installs the ruby sdk with gem when there is no Gemfile', () => {
+  expect(installSeamSdkCommand('ruby', rubyProject('gem'))).toEqual([
+    'gem',
+    'install',
+    'seam',
+  ])
+})
+
+test('installSeamSdkCommand: installs the php sdk with composer', () => {
+  expect(installSeamSdkCommand('php', phpProject())).toEqual([
+    'composer',
+    'require',
+    'seamapi/seam',
+  ])
+})
+
 test('installSeamSdkCommand: ignores the python installer for the javascript sdk', () => {
   const project: ProjectInfo = {
     root: '/example',
     detected_sdk: 'javascript',
     js_package_manager: 'yarn',
     python_installer: 'poetry',
+    ruby_installer: 'gem',
   }
 
   expect(installSeamSdkCommand('javascript', project)).toEqual([

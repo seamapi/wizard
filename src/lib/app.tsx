@@ -1149,22 +1149,31 @@ export function App({
           </Prompt>
         )
       case 'sdk': {
-        const javascriptItem = {
-          label: 'JavaScript / TypeScript',
-          value: 'javascript',
-        }
-        const pythonItem = { label: 'Python', value: 'python' }
+        const sdkItems = [
+          { label: 'JavaScript / TypeScript', value: 'javascript' },
+          { label: 'Python', value: 'python' },
+          { label: 'Ruby', value: 'ruby' },
+          { label: 'PHP', value: 'php' },
+        ]
+        // Float the previously-chosen SDK to the top, otherwise keep the order.
+        const items =
+          preferredSdk == null
+            ? sdkItems
+            : [
+                ...sdkItems.filter((item) => item.value === preferredSdk),
+                ...sdkItems.filter((item) => item.value !== preferredSdk),
+              ]
         return (
           <Prompt title='Which SDK are you using?'>
             <SelectInput
-              items={
-                preferredSdk === 'python'
-                  ? [pythonItem, javascriptItem]
-                  : [javascriptItem, pythonItem]
-              }
+              items={items}
               onSelect={(item) => {
                 const chosen: Sdk =
-                  item.value === 'python' ? 'python' : 'javascript'
+                  item.value === 'python' ||
+                  item.value === 'ruby' ||
+                  item.value === 'php'
+                    ? item.value
+                    : 'javascript'
                 setSdk(chosen)
                 writePreferredSdk(chosen).catch(() => {})
                 addMessage({ tone: 'info', text: `SDK: ${chosen}` })
