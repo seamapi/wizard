@@ -31,6 +31,18 @@ jobs:
         uses: ./.github/actions/setup
         with:
           install_dependencies: 'false'
+      - name: Inject pi peer dependency versions
+        run: |
+          pi_version=$(jq -r '.dependencies["@earendil-works/pi-agent-core"]' package.json)
+          jq --arg pi_version "$pi_version" '
+            .peerDependencies |= with_entries(
+              if .key | startswith("@earendil-works/pi-") and .key != "@earendil-works/pi-agent-core"
+              then .value = $pi_version
+              else .
+              end
+            )
+          ' package.json > package.json.tmp
+          mv package.json.tmp package.json
       - name: Normalize package-lock.json
         run: npm install
       - name: Commit
