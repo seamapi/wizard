@@ -84,8 +84,7 @@ export const piHarness: Harness = {
       createAgentSession,
       DefaultResourceLoader,
       SessionManager,
-      AuthStorage,
-      ModelRegistry,
+      ModelRuntime,
       getAgentDir,
       createReadToolDefinition,
       createEditToolDefinition,
@@ -98,8 +97,11 @@ export const piHarness: Harness = {
     // Register the Seam proxy as an anthropic-messages provider: same protocol
     // the claude-agent-sdk path uses, the scoped wizard token sent as the Bearer
     // the proxy authenticates. Provider cost is zero (metered server-side).
-    const registry = ModelRegistry.inMemory(AuthStorage.inMemory())
-    registry.registerProvider(PROVIDER, {
+    const modelRuntime = await ModelRuntime.create({
+      modelsPath: null,
+      refreshOnCreate: false,
+    })
+    modelRuntime.registerProvider(PROVIDER, {
       name: 'Seam Inference',
       baseUrl: inference.base_url,
       apiKey: inference.token,
@@ -127,7 +129,7 @@ export const piHarness: Harness = {
         },
       ],
     })
-    const model = registry.find(PROVIDER, modelId)
+    const model = modelRuntime.getModel(PROVIDER, modelId)
     if (model == null) {
       return {
         ok: false,
@@ -170,7 +172,7 @@ export const piHarness: Harness = {
 
     const { session } = await createAgentSession({
       model,
-      modelRegistry: registry,
+      modelRuntime,
       // Adaptive-thinking effort, matching the anthropic control's medium effort.
       thinkingLevel: 'medium',
       cwd,
