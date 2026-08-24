@@ -3,7 +3,7 @@
 A tiny property-management app built with [FastAPI](https://fastapi.tiangolo.com/),
 SQLAlchemy, and Jinja2 templates. It manages **spaces** (bookable rooms, suites,
 cabins…), takes **reservations** against them, and lists the **guests** who have
-booked. It is the FastAPI/Python counterpart of the Next.js `framework-pms`
+booked. It is the FastAPI/Python counterpart of the Next.js `nextjs-pms`
 sample, with the same domain so the two exercise the same integration.
 
 ## Getting started
