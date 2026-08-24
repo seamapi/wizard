@@ -1,0 +1,26 @@
+# dependencies
+node_modules
+
+# nuxt build output
+.nuxt
+.output
+dist
+.nitro
+.cache
+
+# local SQLite dev database (auto-created on first run)
+*.db
+*.db-shm
+*.db-wal
+
+# environment (keep the example, ignore the real thing)
+.env
+.env.*
+!.env.example
+
+# logs
+logs
+*.log
+
+# macOS
+.DS_Store
