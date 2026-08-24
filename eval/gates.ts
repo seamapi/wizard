@@ -11,7 +11,12 @@ export function evaluateGates(args: {
     envUntouched: !changedFiles.some(
       (file) => file === '.env' || file.endsWith('/.env'),
     ),
-    seamImported: /from ['"]seam['"]|require\(['"]seam['"]\)/.test(diff),
+    // JS: `from 'seam'` / `require('seam')`; Python: `from seam import …` /
+    // `import seam` — so the gate holds across javascript and python fixtures.
+    seamImported:
+      /from ['"]seam['"]|require\(['"]seam['"]\)|from seam import|import seam\b/.test(
+        diff,
+      ),
     noStandalonePage: !changedFiles.some((file) =>
       /(^|\/)seam[^/]*\/(page|index)\.[jt]sx?$/i.test(file),
     ),
