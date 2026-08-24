@@ -48,9 +48,9 @@ test('seamImported: a lookalike package name does not count', () => {
 })
 
 test('envUntouched: false when the diff touches a .env file', () => {
-  expect(
-    evaluateGates({ changedFiles: ['.env'], diff: '' }).envUntouched,
-  ).toBe(false)
+  expect(evaluateGates({ changedFiles: ['.env'], diff: '' }).envUntouched).toBe(
+    false,
+  )
   expect(
     evaluateGates({ changedFiles: ['config/.env'], diff: '' }).envUntouched,
   ).toBe(false)
