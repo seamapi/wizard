@@ -1,0 +1,18 @@
+# dependencies
+/node_modules
+
+# local SQLite dev database (auto-created on first run)
+*.db
+*.db-shm
+*.db-wal
+
+# environment (keep the example, ignore the real thing)
+.env
+.env.*
+!.env.example
+
+# build output
+/dist
+
+# macOS
+.DS_Store
