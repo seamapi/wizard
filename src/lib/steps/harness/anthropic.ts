@@ -1,5 +1,6 @@
-import { query } from '@anthropic-ai/claude-agent-sdk'
+import { type HookCallback, query } from '@anthropic-ai/claude-agent-sdk'
 
+import { toolInputTouchesSecret } from './secret-paths.js'
 import type { Harness, HarnessRunStepArgs, StepRunResult } from './types.js'
 
 // The official Seam MCP (same server the seam-plugin wires up).
@@ -7,16 +8,37 @@ const SEAM_MCP_URL = 'https://mcp.seam.co/mcp'
 
 // Read/search/write + the docs MCP. Deliberately no Bash, no subagents, no task
 // tools: the agent writes integration code, it does not run the developer's
-// shell. `mcp__seam-docs__*` grants every seam-docs tool.
+// shell. No WebFetch either — the agent gets its references from the seam-docs
+// MCP, so arbitrary web egress is unnecessary and only widens the exfiltration
+// surface. `mcp__seam-docs__*` grants every seam-docs tool.
 const ALLOWED_TOOLS = [
   'Read',
   'Glob',
   'Grep',
   'Edit',
   'Write',
-  'WebFetch',
   'mcp__seam-docs__*',
 ]
+
+// Hard block on the developer's secret files: a deny here overrides the broad
+// `Read` allow above and fires for every tool, so Read/Grep/Edit/Write can't
+// touch `.env` (the system-prompt instruction alone is not enforcement).
+const denySecretFileAccess: HookCallback = async (input) => {
+  if (
+    input.hook_event_name === 'PreToolUse' &&
+    toolInputTouchesSecret(input.tool_input)
+  ) {
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason:
+          'Reading .env / secret files is blocked. Load SEAM_API_KEY from the runtime environment instead.',
+      },
+    }
+  }
+  return {}
+}
 
 // The control harness: drives the integration with the Claude Agent SDK.
 export const anthropicHarness: Harness = {
@@ -54,6 +76,10 @@ export const anthropicHarness: Harness = {
         // reviews the result as a git diff afterward. Read/search tools and the
         // docs MCP are read-only, so nothing destructive runs unattended.
         permissionMode: 'acceptEdits',
+        // Block reads/writes of the developer's .env / secret files.
+        hooks: {
+          PreToolUse: [{ hooks: [denySecretFileAccess] }],
+        },
         mcpServers: {
           // Wired exactly like the seam-plugin: mcp-remote bridges to the hosted
           // Seam MCP and runs the OAuth browser flow on first use, caching the
