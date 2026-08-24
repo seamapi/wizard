@@ -1,5 +1,8 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
-import { createJiti } from 'jiti'
 
 import { toolInputTouchesSecret } from './secret-paths.js'
 import type { Harness, HarnessRunStepArgs, StepRunResult } from './types.js'
@@ -14,6 +17,49 @@ const PROVIDER = 'seam-proxy'
 // native turn limit, so we count turn_start events and abort at the cap — this
 // bounds a run that would otherwise wander (e.g. read-only) without finishing.
 const MAX_TURNS = 100
+
+export function upsertSeamMcp(root: string): void {
+  const configDir = join(root, '.pi')
+  const configPath = join(configDir, 'mcp.json')
+  const config = existsSync(configPath)
+    ? parseMcpConfig(readFileSync(configPath, 'utf8'), configPath)
+    : {}
+  const servers = config.mcpServers ?? {}
+
+  config.mcpServers = {
+    ...servers,
+    'seam-docs': { url: SEAM_MCP_URL, lifecycle: 'eager' },
+  }
+  mkdirSync(configDir, { recursive: true })
+  writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`)
+}
+
+function parseMcpConfig(
+  text: string,
+  path: string,
+): Record<string, unknown> & {
+  mcpServers?: Record<string, unknown>
+} {
+  let config: unknown
+  try {
+    config = JSON.parse(text)
+  } catch {
+    throw new Error(`Invalid MCP config: ${path}`)
+  }
+  if (config == null || typeof config !== 'object' || Array.isArray(config)) {
+    throw new Error(`Invalid MCP config: ${path}`)
+  }
+  const mcpServers = (config as { mcpServers?: unknown }).mcpServers
+  if (
+    mcpServers != null &&
+    (typeof mcpServers !== 'object' || Array.isArray(mcpServers))
+  ) {
+    throw new Error(`Invalid MCP servers: ${path}`)
+  }
+  return config as Record<string, unknown> & {
+    mcpServers?: Record<string, unknown>
+  }
+}
 
 // Per-MTok prices for the models we run, to estimate a step's cost from pi's
 // token stats. The provider spec reports zero cost (the Seam proxy meters real
@@ -90,26 +136,9 @@ export const piHarness: Harness = {
       }
     }
 
-    // Bridge the seam-docs MCP in via pi-mcp-adapter, using the SAME stdio
-    // command the anthropic harness uses so mcp-remote's OAuth cache is reused.
-    // pi-mcp-adapter ships raw TS; jiti loads it, per its documented usage.
-    const jiti = createJiti(import.meta.url)
-    const mcpModule = (await jiti.import('pi-mcp-adapter')) as {
-      createMcpAdapter: (options: unknown) => unknown
-    }
-    const mcpFactory = mcpModule.createMcpAdapter({
-      config: {
-        mcpServers: {
-          'seam-docs': {
-            command: 'npx',
-            args: ['-y', 'mcp-remote', SEAM_MCP_URL],
-            lifecycle: 'eager',
-          },
-        },
-        settings: { toolPrefix: 'seam-docs' },
-      },
-    })
-
+    // Load the adapter as a Pi extension. The MCP config is upserted so other
+    // project MCP servers remain available.
+    upsertSeamMcp(cwd)
     const resourceLoader = new DefaultResourceLoader({
       cwd,
       agentDir: getAgentDir(),
@@ -119,7 +148,9 @@ export const piHarness: Harness = {
       noContextFiles: true,
       noPromptTemplates: true,
       noThemes: true,
-      extensionFactories: [mcpFactory as never],
+      additionalExtensionPaths: [
+        fileURLToPath(import.meta.resolve('pi-mcp-adapter')),
+      ],
     })
     await resourceLoader.reload()
 
