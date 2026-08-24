@@ -1,6 +1,7 @@
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 import { createJiti } from 'jiti'
 
+import { toolInputTouchesSecret } from './secret-paths.js'
 import type { Harness, HarnessRunStepArgs, StepRunResult } from './types.js'
 
 // The official Seam MCP — same server the anthropic harness and the seam-plugin
@@ -127,14 +128,14 @@ export const piHarness: Harness = {
     // Each factory returns a differently-parameterised ToolDefinition; widen to
     // the general type createAgentSession accepts (the per-tool schema variance
     // is irrelevant to the session, which treats them uniformly).
-    const customTools = [
+    const customTools = guardSecretFileTools([
       createReadToolDefinition(cwd),
       createEditToolDefinition(cwd),
       createWriteToolDefinition(cwd),
       createLsToolDefinition(cwd),
       createFindToolDefinition(cwd),
       createGrepToolDefinition(cwd),
-    ] as unknown as ToolDefinition[]
+    ] as unknown as ToolDefinition[])
 
     const { session } = await createAgentSession({
       model,
@@ -199,6 +200,47 @@ export const piHarness: Harness = {
       costUsd: estimateCost(modelId, stats.tokens),
     }
   },
+}
+
+// pi's built-in file tools ship no secret-file guard, so wrap each one: a call
+// whose input targets a secret file (.env, …) is refused before it runs — parity
+// with the anthropic harness's PreToolUse deny. Only `execute` is overridden;
+// every other field (schema, renderers) is preserved by the spread.
+type PiToolExecute = (
+  toolCallId: string,
+  params: unknown,
+  signal: AbortSignal | undefined,
+  onUpdate: unknown,
+  ctx: unknown,
+) => Promise<unknown>
+
+function guardSecretFileTools(tools: ToolDefinition[]): ToolDefinition[] {
+  return tools.map((tool) => {
+    const runOriginal = (
+      tool as unknown as { execute: PiToolExecute }
+    ).execute.bind(tool)
+    const execute: PiToolExecute = async (
+      toolCallId,
+      params,
+      signal,
+      onUpdate,
+      ctx,
+    ) => {
+      if (toolInputTouchesSecret(params)) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: 'Reading .env / secret files is blocked. Load SEAM_API_KEY from the runtime environment instead.',
+            },
+          ],
+          details: {},
+        }
+      }
+      return runOriginal(toolCallId, params, signal, onUpdate, ctx)
+    }
+    return { ...tool, execute } as unknown as ToolDefinition
+  })
 }
 
 function readRole(message: unknown): string | undefined {

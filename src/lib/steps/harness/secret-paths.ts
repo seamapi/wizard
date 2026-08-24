@@ -4,14 +4,17 @@
 // model context. `.env.example` is the value-less template the wizard writes, so
 // it stays readable.
 
-// Tool-input fields that carry a filesystem path across the built-in tools:
-// Read/Edit/Write use `file_path`, Grep/Glob/Ls use `path`, Grep also takes a
-// `glob`, and notebook tools use `notebook_path`.
+// Tool-input fields that carry a filesystem path across the built-in tools of
+// both harnesses. Claude Agent SDK: Read/Edit/Write use `file_path`, Grep/Glob
+// use `path` + `glob`, notebooks use `notebook_path`. pi: Read/Grep/Find use
+// `path`, Grep/Find also take `glob`, Ls uses `dir`/`directory`.
 const PATH_BEARING_KEYS = [
   'file_path',
   'path',
   'notebook_path',
   'glob',
+  'dir',
+  'directory',
 ] as const
 
 // True for `.env` and `.env.*` at any directory depth, except `.env.example`.
@@ -32,4 +35,19 @@ export function toolInputTouchesSecret(toolInput: unknown): boolean {
     if (typeof value === 'string' && isSecretFilePath(value)) return true
   }
   return false
+}
+
+// Drop lines a grep surfaced from a secret file. The PreToolUse deny only fires
+// when a tool *names* a secret path, so a repo-wide grep (path ".") still scans
+// `.env` and returns its matching lines; this strips them from the output before
+// it reaches the model. Each grep line is prefixed with its source file
+// (`path:line:text` in content mode, or a bare `path` in files-with-matches
+// mode), so the leading token is the file to test.
+export function redactSecretGrepLines(output: string): string {
+  const lines = output.split('\n')
+  const kept = lines.filter((line) => {
+    const leadingPath = line.split(':', 1)[0] ?? line
+    return !isSecretFilePath(leadingPath)
+  })
+  return kept.length === lines.length ? output : kept.join('\n')
 }

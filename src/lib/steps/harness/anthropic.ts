@@ -1,6 +1,9 @@
 import { type HookCallback, query } from '@anthropic-ai/claude-agent-sdk'
 
-import { toolInputTouchesSecret } from './secret-paths.js'
+import {
+  redactSecretGrepLines,
+  toolInputTouchesSecret,
+} from './secret-paths.js'
 import type { Harness, HarnessRunStepArgs, StepRunResult } from './types.js'
 
 // The official Seam MCP (same server the seam-plugin wires up).
@@ -40,6 +43,25 @@ const denySecretFileAccess: HookCallback = async (input) => {
   return {}
 }
 
+// The PreToolUse deny only fires when a tool *names* a secret path; a repo-wide
+// grep (path ".") still scans `.env` and returns its lines. Strip those from the
+// grep output before it reaches the model. Only the string form of the result is
+// handled — a shape the redactor can't parse is left untouched.
+const redactSecretsFromGrepOutput: HookCallback = async (input) => {
+  if (input.hook_event_name !== 'PostToolUse') return {}
+  if (input.tool_name !== 'Grep' || typeof input.tool_response !== 'string') {
+    return {}
+  }
+  const redacted = redactSecretGrepLines(input.tool_response)
+  if (redacted === input.tool_response) return {}
+  return {
+    hookSpecificOutput: {
+      hookEventName: 'PostToolUse',
+      updatedToolOutput: redacted,
+    },
+  }
+}
+
 // The control harness: drives the integration with the Claude Agent SDK.
 export const anthropicHarness: Harness = {
   name: 'anthropic',
@@ -76,9 +98,11 @@ export const anthropicHarness: Harness = {
         // reviews the result as a git diff afterward. Read/search tools and the
         // docs MCP are read-only, so nothing destructive runs unattended.
         permissionMode: 'acceptEdits',
-        // Block reads/writes of the developer's .env / secret files.
+        // Block reads/writes of the developer's .env / secret files, and strip
+        // any secret lines a broad grep still surfaces from them.
         hooks: {
           PreToolUse: [{ hooks: [denySecretFileAccess] }],
+          PostToolUse: [{ hooks: [redactSecretsFromGrepOutput] }],
         },
         mcpServers: {
           // Wired exactly like the seam-plugin: mcp-remote bridges to the hosted
