@@ -9,6 +9,11 @@ import type { Harness, HarnessRunStepArgs, StepRunResult } from './types.js'
 const SEAM_MCP_URL = 'https://mcp.seam.co/mcp'
 const PROVIDER = 'seam-proxy'
 
+// Cap on agent turns, matching the anthropic control's maxTurns. pi exposes no
+// native turn limit, so we count turn_start events and abort at the cap — this
+// bounds a run that would otherwise wander (e.g. read-only) without finishing.
+const MAX_TURNS = 100
+
 // Per-MTok prices for the models we run, to estimate a step's cost from pi's
 // token stats. The provider spec reports zero cost (the Seam proxy meters real
 // cost server-side); this gives the eval a comparable client-side figure.
@@ -144,9 +149,27 @@ export const piHarness: Harness = {
     })
     await session.bindExtensions({})
 
+    // Stop the session once (turn cap reached, or an external abort like Ctrl-C
+    // / the eval's signal). abort() is async; fire-and-forget is fine.
+    let stopped = false
+    const stop = (): void => {
+      if (stopped) return
+      stopped = true
+      session.abort().catch(() => {})
+    }
+    if (signal.aborted) stop()
+    const onExternalAbort = (): void => stop()
+    signal.addEventListener('abort', onExternalAbort, { once: true })
+
     let summary = ''
     let toolCalls = 0
+    let turns = 0
     const unsubscribe = session.subscribe((event) => {
+      if (event.type === 'turn_start') {
+        turns += 1
+        if (turns > MAX_TURNS) stop()
+        return
+      }
       if (signal.aborted) return
       if (event.type === 'message_end') {
         if (readRole(event.message) !== 'assistant') return
@@ -165,6 +188,7 @@ export const piHarness: Harness = {
       await session.prompt(goal)
     } finally {
       unsubscribe()
+      signal.removeEventListener('abort', onExternalAbort)
     }
 
     const stats = session.getSessionStats()
