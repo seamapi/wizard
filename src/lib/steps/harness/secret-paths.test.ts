@@ -1,6 +1,10 @@
 import { expect, test } from 'vitest'
 
-import { isSecretFilePath, toolInputTouchesSecret } from './secret-paths.js'
+import {
+  isSecretFilePath,
+  redactSecretGrepLines,
+  toolInputTouchesSecret,
+} from './secret-paths.js'
 
 test('isSecretFilePath: blocks .env and its variants', () => {
   expect(isSecretFilePath('.env')).toBe(true)
@@ -25,11 +29,42 @@ test('isSecretFilePath: allows ordinary files', () => {
 })
 
 test('toolInputTouchesSecret: detects the path across tool input fields', () => {
-  expect(toolInputTouchesSecret({ file_path: '.env' })).toBe(true) // Read/Edit/Write
-  expect(toolInputTouchesSecret({ path: './.env.local' })).toBe(true) // Grep/Glob/Ls
-  expect(toolInputTouchesSecret({ glob: '.env' })).toBe(true) // Grep glob
+  expect(toolInputTouchesSecret({ file_path: '.env' })).toBe(true) // SDK Read/Edit/Write
+  expect(toolInputTouchesSecret({ path: './.env.local' })).toBe(true) // pi Read / SDK Grep
+  expect(toolInputTouchesSecret({ glob: '.env' })).toBe(true) // Grep/Find glob
+  expect(toolInputTouchesSecret({ dir: 'config/.env.staging' })).toBe(true) // pi Ls
   expect(toolInputTouchesSecret({ file_path: '.env.example' })).toBe(false)
   expect(toolInputTouchesSecret({ file_path: 'src/app.ts' })).toBe(false)
+})
+
+test('redactSecretGrepLines: drops lines sourced from a secret file', () => {
+  const output = [
+    'src/config.ts:12:const url = process.env.DATABASE_URL',
+    '.env:1:DATABASE_URL=postgres://user:pw@host/db',
+    'config/.env.production:3:STRIPE_KEY=sk_live_abc',
+    'src/app.ts:5:import { Seam } from "seam"',
+  ].join('\n')
+  const redacted = redactSecretGrepLines(output)
+  expect(redacted).toBe(
+    [
+      'src/config.ts:12:const url = process.env.DATABASE_URL',
+      'src/app.ts:5:import { Seam } from "seam"',
+    ].join('\n'),
+  )
+  expect(redacted).not.toContain('sk_live_abc')
+  expect(redacted).not.toContain('postgres://')
+})
+
+test('redactSecretGrepLines: keeps .env.example lines and is a no-op when clean', () => {
+  const clean = ['src/a.ts:1:x', '.env.example:1:SEAM_API_KEY='].join('\n')
+  expect(redactSecretGrepLines(clean)).toBe(clean)
+})
+
+test('redactSecretGrepLines: handles files-with-matches (bare path) output', () => {
+  const output = ['src/config.ts', '.env', 'src/app.ts'].join('\n')
+  expect(redactSecretGrepLines(output)).toBe(
+    ['src/config.ts', 'src/app.ts'].join('\n'),
+  )
 })
 
 test('toolInputTouchesSecret: safe on non-object / empty input', () => {
