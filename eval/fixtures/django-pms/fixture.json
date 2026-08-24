@@ -1,0 +1,5 @@
+{
+  "name": "django-pms",
+  "sdk": "python",
+  "framework": "Django"
+}

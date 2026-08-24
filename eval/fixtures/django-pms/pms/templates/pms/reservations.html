@@ -1,0 +1,86 @@
+{% extends "pms/base.html" %}
+{% block title %}Reservations · Django PMS{% endblock %}
+{% block content %}
+<h1>Reservations</h1>
+<p>{{ reservations|length }} total</p>
+
+{% if not reservations %}
+<div class="card">No reservations yet. Once guests book, they'll show up here.</div>
+{% else %}
+{% for reservation in reservations %}
+<article class="card">
+  <div>
+    <strong>{{ reservation.guest_name }}</strong>
+    <span
+      class="badge"
+      style="background: {% if reservation.status == 'confirmed' %}#d1fae5{% elif reservation.status == 'cancelled' %}#fee2e2{% else %}#fef3c7{% endif %}"
+    >
+      {{ reservation.status }}
+    </span>
+    <span>#{{ reservation.id }}</span>
+  </div>
+  <div>
+    <a href="mailto:{{ reservation.email }}">{{ reservation.email }}</a> ·
+    <a href="tel:{{ reservation.phone }}">{{ reservation.phone }}</a> ·
+    {{ reservation.party_size }} guest(s)
+  </div>
+  <div>{{ reservation.check_in }} → {{ reservation.check_out }}</div>
+  {% if reservation.notes %}
+  <p><em>"{{ reservation.notes }}"</em></p>
+  {% endif %}
+
+  <form method="post" action="{% url 'reservation_assign' reservation.id %}">
+    {% csrf_token %}
+    <label for="space-{{ reservation.id }}">Space</label>
+    <select
+      id="space-{{ reservation.id }}"
+      name="space"
+      onchange="this.form.submit()"
+    >
+      <option value="">Unassigned</option>
+      {% for space in spaces %}
+      {% if space.status == 'active' or space.id == reservation.space_id %}
+      <option value="{{ space.id }}" {% if space.id == reservation.space_id %}selected{% endif %}>
+        {{ space.name }} · {{ space.get_kind_display }} · sleeps {{ space.capacity }}{% if space.status == 'archived' %} (archived){% endif %}
+      </option>
+      {% endif %}
+      {% endfor %}
+    </select>
+  </form>
+
+  <div>
+    {% if reservation.status != 'confirmed' %}
+    <form
+      method="post"
+      action="{% url 'reservation_status' reservation.id %}"
+      style="display: inline"
+    >
+      {% csrf_token %}
+      <input type="hidden" name="status" value="confirmed" />
+      <button type="submit">Confirm</button>
+    </form>
+    {% endif %}
+    {% if reservation.status != 'cancelled' %}
+    <form
+      method="post"
+      action="{% url 'reservation_status' reservation.id %}"
+      style="display: inline"
+    >
+      {% csrf_token %}
+      <input type="hidden" name="status" value="cancelled" />
+      <button type="submit">Cancel</button>
+    </form>
+    {% endif %}
+    <form
+      method="post"
+      action="{% url 'reservation_delete' reservation.id %}"
+      style="display: inline"
+    >
+      {% csrf_token %}
+      <button type="submit">Delete</button>
+    </form>
+  </div>
+</article>
+{% endfor %}
+{% endif %}
+{% endblock %}
