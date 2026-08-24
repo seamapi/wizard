@@ -1,0 +1,21 @@
+<%- include('partials/header', { title: 'Guests · Express PMS' }) %>
+
+<h1>Guests</h1>
+<p><%= guests.length %> unique guest(s)</p>
+
+<% if (guests.length === 0) { %>
+<div class="card">No guests yet.</div>
+<% } else { %>
+<% guests.forEach(function (guest) { %>
+<article class="card">
+  <strong><%= guest.name %></strong>
+  <div>
+    <a href="mailto:<%= guest.email %>"><%= guest.email %></a> ·
+    <a href="tel:<%= guest.phone %>"><%= guest.phone %></a>
+  </div>
+  <div><%= guest.reservationCount %> reservation(s)</div>
+</article>
+<% }) %>
+<% } %>
+
+<%- include('partials/footer') %>

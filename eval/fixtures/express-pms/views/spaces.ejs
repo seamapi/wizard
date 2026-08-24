@@ -1,0 +1,49 @@
+<%- include('partials/header', { title: 'Spaces · Express PMS' }) %>
+
+<h1>Spaces</h1>
+<% if (error) { %>
+<p class="error"><%= error %></p>
+<% } %>
+
+<form method="post" action="/spaces" class="card">
+  <h2>Add a space</h2>
+  <label for="name">Name</label>
+  <input id="name" name="name" required />
+
+  <label for="kind">Kind</label>
+  <select id="kind" name="kind">
+    <% kinds.forEach(function (kind) { %>
+    <option value="<%= kind %>"><%= SPACE_KIND_LABELS[kind] %></option>
+    <% }) %>
+  </select>
+
+  <label for="capacity">Capacity</label>
+  <input id="capacity" name="capacity" type="number" min="1" max="40" value="2" />
+
+  <label for="rate">Nightly rate</label>
+  <input id="rate" name="rate" type="number" min="0" step="0.01" />
+
+  <label for="notes">Notes</label>
+  <textarea id="notes" name="notes" rows="2"></textarea>
+
+  <p><button type="submit">Add space</button></p>
+</form>
+
+<% spaces.forEach(function (space) { %>
+<article class="card">
+  <strong><%= space.name %></strong> · <%= SPACE_KIND_LABELS[space.kind] %> · sleeps <%= space.capacity %>
+  <span class="badge" style="background: #e2e8f0"><%= space.status %></span>
+  <% if (space.rate_cents) { %>
+  <div>Rate: <%= (space.rate_cents / 100).toFixed(2) %> / night</div>
+  <% } %>
+  <% if (space.notes) { %>
+  <p><em><%= space.notes %></em></p>
+  <% } %>
+  <form method="post" action="/spaces/<%= space.id %>/status" style="display: inline">
+    <input type="hidden" name="status" value="<%= space.status === 'active' ? 'archived' : 'active' %>" />
+    <button type="submit"><%= space.status === 'active' ? 'Archive' : 'Restore' %></button>
+  </form>
+</article>
+<% }) %>
+
+<%- include('partials/footer') %>

@@ -1,0 +1,43 @@
+<%- include('partials/header', { title: 'Book a stay · Express PMS' }) %>
+
+<h1>Book a stay</h1>
+<% if (error) { %>
+<p class="error"><%= error %></p>
+<% } %>
+
+<form method="post" action="/book" class="card">
+  <label for="guestName">Your name</label>
+  <input id="guestName" name="guestName" required />
+
+  <label for="email">Email</label>
+  <input id="email" name="email" type="email" required />
+
+  <label for="phone">Phone</label>
+  <input id="phone" name="phone" required />
+
+  <label for="checkIn">Check in</label>
+  <input id="checkIn" name="checkIn" type="date" required />
+
+  <label for="checkOut">Check out</label>
+  <input id="checkOut" name="checkOut" type="date" required />
+
+  <label for="partySize">Guests</label>
+  <input id="partySize" name="partySize" type="number" min="1" max="20" value="1" />
+
+  <label for="spaceId">Space</label>
+  <select id="spaceId" name="spaceId">
+    <option value="">Let the front desk assign one</option>
+    <% spaces.forEach(function (space) { %>
+    <option value="<%= space.id %>">
+      <%= space.name %> · <%= SPACE_KIND_LABELS[space.kind] %> · sleeps <%= space.capacity %>
+    </option>
+    <% }) %>
+  </select>
+
+  <label for="notes">Notes</label>
+  <textarea id="notes" name="notes" rows="3"></textarea>
+
+  <p><button type="submit">Request booking</button></p>
+</form>
+
+<%- include('partials/footer') %>
