@@ -1,0 +1,17 @@
+{% extends "base.html" %} {% block title %}Guests · Flask PMS{% endblock %} {%
+block content %}
+<h1>Guests</h1>
+<p>{{ guests | length }} unique guest(s)</p>
+
+{% if not guests %}
+<div class="card">No guests yet.</div>
+{% else %} {% for guest in guests %}
+<article class="card">
+  <strong>{{ guest.name }}</strong>
+  <div>
+    <a href="mailto:{{ guest.email }}">{{ guest.email }}</a> ·
+    <a href="tel:{{ guest.phone }}">{{ guest.phone }}</a>
+  </div>
+  <div>{{ guest.reservation_count }} reservation(s)</div>
+</article>
+{% endfor %} {% endif %} {% endblock %}
