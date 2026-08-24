@@ -1,4 +1,2 @@
-# Eval fixtures are standalone sample apps (Next.js, FastAPI, …), not wizard
-# source — eslint already ignores them (eslint.config.ts), and prettier can't
-# even parse some of their templates (Jinja in HTML errors its HTML parser).
+# Eval fixtures are standalone sample apps with project local conventions.
 eval/fixtures/
