@@ -255,6 +255,19 @@ function buildSystemAppend(
     `  ${modeLabel} approach. Model your integration on it — match its structure and Seam API`,
     `  usage — but ADAPT it to this project's actual framework version, conventions, and file`,
     `  layout. Do not copy it verbatim, and don't add files this project doesn't need.`,
+    // Context packs are per-(provider, SDK) and only exist for JavaScript/Python,
+    // so only point the agent at them for those SDKs — and only when a specific
+    // provider is in play (a Connect Webview defers the provider choice).
+    ...(sdk === 'javascript' || sdk === 'python'
+      ? [
+          `- If the integration targets a specific device or access-control provider (e.g. the developer`,
+          `  named August, Schlage, …), call mcp__seam-docs__list_context_packs, then`,
+          `  mcp__seam-docs__get_context_pack with that provider and the "${sdk}" SDK to pull its`,
+          `  provider-specific SKILL.md (connect + access-grant guidance grounded in that provider's real`,
+          `  Seam capabilities), and follow it. Skip this when no specific provider is targeted — a Connect`,
+          `  Webview lets the end user pick, so generic Access Grant guidance applies.`,
+        ]
+      : []),
     `- Find and read the installed Seam skill. Glob for a directory named like "*seam*" under`,
     `  .claude/skills and .agents/skills, and read its SKILL.md and any referenced files.`,
     `- Use the seam-docs MCP tools (prefixed mcp__seam-docs__) to confirm current Seam API usage.`,
