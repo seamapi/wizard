@@ -5,7 +5,12 @@ const sdkKey = 'sdk'
 
 export const readPreferredSdk = async (): Promise<Sdk | null> => {
   const sdk = await getAdapter().config.get(sdkKey)
-  return sdk === 'javascript' || sdk === 'python' ? sdk : null
+  return sdk === 'javascript' ||
+    sdk === 'python' ||
+    sdk === 'ruby' ||
+    sdk === 'php'
+    ? sdk
+    : null
 }
 
 export const writePreferredSdk = async (sdk: Sdk): Promise<void> => {

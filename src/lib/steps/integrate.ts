@@ -226,13 +226,22 @@ export async function runIntegration(args: RunIntegrationArgs): Promise<void> {
   }
 }
 
+// How each SDK's language reads in the agent's system prompt. A Record keyed by
+// Sdk so a new language must add its label here (exhaustiveness).
+const SDK_LANGUAGE_LABELS: Record<Sdk, string> = {
+  javascript: 'JavaScript/TypeScript',
+  python: 'Python',
+  ruby: 'Ruby',
+  php: 'PHP',
+}
+
 function buildSystemAppend(
   sdk: Sdk,
   workspaceName: string,
   framework?: string | null,
   mode?: 'full_api' | 'customer_portal',
 ): string {
-  const language = sdk === 'python' ? 'Python' : 'JavaScript/TypeScript'
+  const language = SDK_LANGUAGE_LABELS[sdk]
   const frameworkLabel = framework ?? "this project's framework"
   const modeLabel = mode === 'customer_portal' ? 'Customer Portal' : 'full-API'
   return [

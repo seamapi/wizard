@@ -122,6 +122,23 @@ function detectFramework(
     return null
   }
 
+  if (sdk === 'ruby') {
+    // Rails ships a bin/rails and config/application.rb; either is a reliable marker.
+    if (
+      existsSync(join(root, 'bin', 'rails')) ||
+      existsSync(join(root, 'config', 'application.rb'))
+    ) {
+      return 'Rails'
+    }
+    return null
+  }
+
+  if (sdk === 'php') {
+    // Laravel's `artisan` console entrypoint sits at the project root.
+    if (existsSync(join(root, 'artisan'))) return 'Laravel'
+    return null
+  }
+
   return null
 }
 

@@ -30,8 +30,8 @@ test('preferred SDK: is kept in the settings the host holds', async () => {
   expect(await getAdapter().config.get('sdk')).toBe('javascript')
 })
 
-test('preferred SDK: ignores an SDK the wizard no longer offers', async () => {
-  await getAdapter().config.set('sdk', 'ruby')
+test('preferred SDK: ignores an SDK the wizard does not offer', async () => {
+  await getAdapter().config.set('sdk', 'go')
 
   expect(await readPreferredSdk()).toBeNull()
 })
