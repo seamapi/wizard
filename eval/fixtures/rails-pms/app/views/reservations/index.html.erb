@@ -1,0 +1,62 @@
+<% content_for :title, "Reservations · Rails PMS" %>
+
+<h1>Reservations</h1>
+<p><%= @reservations.length %> total</p>
+
+<% if @reservations.empty? %>
+  <div class="card">No reservations yet. Once guests book, they'll show up here.</div>
+<% else %>
+  <% @reservations.each do |reservation| %>
+    <article class="card">
+      <div>
+        <strong><%= reservation.guest_name %></strong>
+        <span class="badge" style="background: <%= reservation_status_color(reservation.status) %>">
+          <%= reservation.status %>
+        </span>
+        <span>#<%= reservation.id %></span>
+      </div>
+      <div>
+        <a href="mailto:<%= reservation.email %>"><%= reservation.email %></a> ·
+        <a href="tel:<%= reservation.phone %>"><%= reservation.phone %></a> ·
+        <%= reservation.party_size %> guest(s)
+      </div>
+      <div><%= reservation.check_in %> → <%= reservation.check_out %></div>
+      <% if reservation.notes.present? %>
+        <p><em>"<%= reservation.notes %>"</em></p>
+      <% end %>
+
+      <%= form_with url: assign_reservation_path(reservation), method: :post do %>
+        <label for="space-<%= reservation.id %>">Space</label>
+        <select id="space-<%= reservation.id %>" name="space_id" onchange="this.form.submit()">
+          <option value="">Unassigned</option>
+          <% @spaces.each do |space| %>
+            <% if space.active? || space.id == reservation.space_id %>
+              <option value="<%= space.id %>" <%= "selected" if space.id == reservation.space_id %>>
+                <%= space.name %> · <%= space.kind_label %> · sleeps <%= space.capacity %><%= " (archived)" unless space.active? %>
+              </option>
+            <% end %>
+          <% end %>
+        </select>
+      <% end %>
+
+      <div>
+        <% if reservation.status != "confirmed" %>
+          <%= button_to "Confirm",
+                        status_reservation_path(reservation),
+                        params: { status: "confirmed" },
+                        form: { style: "display: inline" } %>
+        <% end %>
+        <% if reservation.status != "cancelled" %>
+          <%= button_to "Cancel",
+                        status_reservation_path(reservation),
+                        params: { status: "cancelled" },
+                        form: { style: "display: inline" } %>
+        <% end %>
+        <%= button_to "Delete",
+                      reservation_path(reservation),
+                      method: :post,
+                      form: { style: "display: inline" } %>
+      </div>
+    </article>
+  <% end %>
+<% end %>

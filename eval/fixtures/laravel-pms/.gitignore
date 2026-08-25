@@ -1,0 +1,29 @@
+# Dependencies
+/vendor
+
+# Local SQLite dev database
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+database/*.sqlite
+
+# Environment (keep the example, ignore the real thing)
+.env
+.env.*
+!.env.example
+
+# Laravel runtime
+/storage/*.key
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+/storage/logs/*
+/bootstrap/cache/*
+
+# Tooling
+/.phpunit.cache
+/public/hot
+/public/storage
+
+# macOS
+.DS_Store

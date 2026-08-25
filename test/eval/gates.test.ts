@@ -39,6 +39,38 @@ test('seamImported: recognizes the Python import forms', () => {
   expect(bareImport.seamImported).toBe(true)
 })
 
+test('seamImported: recognizes the Ruby require form', () => {
+  const doubleQuoted = evaluateGates({
+    changedFiles: ['app/controllers/seam_controller.rb'],
+    diff: diffAdding('app/controllers/seam_controller.rb', 'require "seam"'),
+  })
+  const singleQuoted = evaluateGates({
+    changedFiles: ['config/initializers/seam.rb'],
+    diff: diffAdding('config/initializers/seam.rb', "require 'seam'"),
+  })
+  expect(doubleQuoted.seamImported).toBe(true)
+  expect(singleQuoted.seamImported).toBe(true)
+})
+
+test('seamImported: recognizes the PHP use / instantiation forms', () => {
+  const useImport = evaluateGates({
+    changedFiles: ['app/Http/Controllers/SeamController.php'],
+    diff: diffAdding(
+      'app/Http/Controllers/SeamController.php',
+      'use Seam\\Seam;',
+    ),
+  })
+  const instantiation = evaluateGates({
+    changedFiles: ['app/Http/Controllers/SeamController.php'],
+    diff: diffAdding(
+      'app/Http/Controllers/SeamController.php',
+      '$seam = new \\Seam\\Seam();',
+    ),
+  })
+  expect(useImport.seamImported).toBe(true)
+  expect(instantiation.seamImported).toBe(true)
+})
+
 test('seamImported: a lookalike package name does not count', () => {
   const gates = evaluateGates({
     changedFiles: ['app.py'],

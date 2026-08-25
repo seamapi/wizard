@@ -1,0 +1,5 @@
+{
+  "name": "laravel-pms",
+  "sdk": "php",
+  "framework": "Laravel"
+}

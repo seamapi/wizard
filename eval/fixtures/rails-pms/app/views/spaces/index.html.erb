@@ -1,0 +1,47 @@
+<% content_for :title, "Spaces · Rails PMS" %>
+
+<h1>Spaces</h1>
+<% if @error %>
+  <p class="error"><%= @error %></p>
+<% end %>
+
+<%= form_with url: spaces_path, method: :post, class: "card" do %>
+  <h2>Add a space</h2>
+  <label for="name">Name</label>
+  <input id="name" name="name" required />
+
+  <label for="kind">Kind</label>
+  <select id="kind" name="kind">
+    <% @kinds.each do |kind| %>
+      <option value="<%= kind %>"><%= space_kind_label(kind) %></option>
+    <% end %>
+  </select>
+
+  <label for="capacity">Capacity</label>
+  <input id="capacity" name="capacity" type="number" min="1" max="40" value="2" />
+
+  <label for="rate">Nightly rate</label>
+  <input id="rate" name="rate" type="number" min="0" step="0.01" />
+
+  <label for="notes">Notes</label>
+  <textarea id="notes" name="notes" rows="2"></textarea>
+
+  <p><button type="submit">Add space</button></p>
+<% end %>
+
+<% @spaces.each do |space| %>
+  <article class="card">
+    <strong><%= space.name %></strong> · <%= space.kind_label %> · sleeps <%= space.capacity %>
+    <span class="badge" style="background: #e2e8f0"><%= space.status %></span>
+    <% if space.rate_cents %>
+      <div>Rate: <%= format("%.2f", space.rate_cents / 100.0) %> / night</div>
+    <% end %>
+    <% if space.notes.present? %>
+      <p><em><%= space.notes %></em></p>
+    <% end %>
+    <%= button_to (space.active? ? "Archive" : "Restore"),
+                  status_space_path(space),
+                  params: { status: (space.active? ? "archived" : "active") },
+                  form: { style: "display: inline" } %>
+  </article>
+<% end %>
