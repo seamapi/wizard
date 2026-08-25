@@ -1,0 +1,20 @@
+# Local SQLite dev/test databases (auto-created).
+/db/*.sqlite3
+/db/*.sqlite3-*
+
+# Logs and tempfiles.
+/log/*
+/tmp/*
+!/log/.keep
+!/tmp/.keep
+
+# Environment (keep the example, ignore the real thing).
+.env
+.env.*
+!.env.example
+
+# Bundler.
+/vendor/bundle
+
+# macOS
+.DS_Store

@@ -11,10 +11,13 @@ export function evaluateGates(args: {
     envUntouched: !changedFiles.some(
       (file) => file === '.env' || file.endsWith('/.env'),
     ),
-    // JS: `from 'seam'` / `require('seam')`; Python: `from seam import …` /
-    // `import seam` — so the gate holds across javascript and python fixtures.
+    // Recognizes a Seam SDK import/instantiation across every fixture language:
+    //   JS:     from 'seam'  |  require('seam')
+    //   Python: from seam import …  |  import seam
+    //   Ruby:   require 'seam'  (no parens)
+    //   PHP:    use Seam\…  |  new [\]Seam\Seam
     seamImported:
-      /from ['"]seam['"]|require\(['"]seam['"]\)|from seam import|import seam\b/.test(
+      /from ['"]seam['"]|require\(['"]seam['"]\)|from seam import|import seam\b|require ['"]seam['"]|use Seam\\|new \\?Seam\\Seam/.test(
         diff,
       ),
     noStandalonePage: !changedFiles.some((file) =>
