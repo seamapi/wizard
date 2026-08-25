@@ -4,7 +4,10 @@ import { fileURLToPath } from 'node:url'
 
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 
-import { toolInputTouchesSecret } from './secret-paths.js'
+import {
+  redactSecretGrepLines,
+  toolInputTouchesSecret,
+} from './secret-paths.js'
 import type { Harness, HarnessRunStepArgs, StepRunResult } from './types.js'
 
 // The official Seam MCP — same server the anthropic harness and the seam-plugin
@@ -249,6 +252,7 @@ type PiToolExecute = (
 
 function guardSecretFileTools(tools: ToolDefinition[]): ToolDefinition[] {
   return tools.map((tool) => {
+    const toolName = (tool as unknown as { name?: unknown }).name
     const runOriginal = (
       tool as unknown as { execute: PiToolExecute }
     ).execute.bind(tool)
@@ -270,10 +274,43 @@ function guardSecretFileTools(tools: ToolDefinition[]): ToolDefinition[] {
           details: {},
         }
       }
-      return runOriginal(toolCallId, params, signal, onUpdate, ctx)
+      const result = await runOriginal(
+        toolCallId,
+        params,
+        signal,
+        onUpdate,
+        ctx,
+      )
+      // The input-path guard above blocks a grep that *names* .env, but a broad
+      // grep (path ".") still scans it and returns its lines. Strip those from
+      // the output — parity with the anthropic harness's PostToolUse redaction.
+      return toolName === 'grep' ? redactSecretLinesFromResult(result) : result
     }
     return { ...tool, execute } as unknown as ToolDefinition
   })
+}
+
+// Apply redactSecretGrepLines to each text block of a tool result, leaving the
+// result's shape (details, image blocks, …) otherwise untouched.
+function redactSecretLinesFromResult(result: unknown): unknown {
+  if (typeof result !== 'object' || result == null) return result
+  const content = (result as { content?: unknown }).content
+  if (!Array.isArray(content)) return result
+  const redacted = content.map((block) => {
+    if (
+      typeof block === 'object' &&
+      block != null &&
+      (block as { type?: unknown }).type === 'text' &&
+      typeof (block as { text?: unknown }).text === 'string'
+    ) {
+      return {
+        ...block,
+        text: redactSecretGrepLines((block as { text: string }).text),
+      }
+    }
+    return block
+  })
+  return { ...(result as object), content: redacted }
 }
 
 function readRole(message: unknown): string | undefined {
