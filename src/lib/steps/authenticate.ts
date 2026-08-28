@@ -4,6 +4,7 @@ import { findExistingApiKey, saveProjectApiKey } from 'lib/env-file.js'
 
 export interface AuthResult {
   workspace: SeamWorkspace
+  api_key: string
 }
 
 export interface ExistingKeyResult {
@@ -55,7 +56,7 @@ export async function verifyAndSaveKey(
   const trimmed = apiKey.trim()
   const workspace = await getWorkspaceForApiKey(trimmed)
   saveProjectApiKey(root, trimmed)
-  return { workspace }
+  return { workspace, api_key: trimmed }
 }
 
 export function saveVerifiedKey(root: string, apiKey: string): void {
