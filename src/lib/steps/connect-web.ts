@@ -14,6 +14,7 @@ const CALLBACK_TIMEOUT_MS = 5 * 60 * 1000
 
 export interface WebConnectResult {
   workspace: SeamWorkspace
+  api_key: string
 }
 
 // Progress callbacks so the Ink UI can render the handoff without any logging
@@ -110,7 +111,7 @@ export async function connectViaWeb(
 
   const workspace = await getWorkspaceForApiKey(payload.api_key)
   saveProjectApiKey(root, payload.api_key)
-  return { workspace }
+  return { workspace, api_key: payload.api_key }
 }
 
 function respondJson(

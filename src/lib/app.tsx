@@ -121,6 +121,9 @@ export function App({
   const { isRawModeSupported } = useStdin()
   const projectRef = useRef<ProjectInfo>(detectProject(root))
   const attemptRef = useRef(0)
+  // The key this run actually connected with. Downstream steps read this
+  // instead of the environment, which may hold a key for another workspace.
+  const apiKeyRef = useRef<string | null>(null)
 
   const [dimensions, setDimensions] = useState({
     rows: stdout?.rows ?? 24,
@@ -331,6 +334,7 @@ export function App({
     source: 'project' | 'cli' | 'browser' | 'pasted',
     location: string | null,
   ): void => {
+    apiKeyRef.current = apiKey
     setWorkspace(settledWorkspace)
     saveConnection(root, {
       workspace: settledWorkspace,
@@ -429,12 +433,11 @@ export function App({
             !cancelled && setBrowser((b) => ({ ...b, received: true })),
         })
         if (cancelled) return
-        setWorkspace(result.workspace)
         addMessage({
           tone: 'ok',
           text: `Connected · workspace ${result.workspace.name}`,
         })
-        advanceAfterAuth()
+        settleOn(result.workspace, result.api_key, 'browser', '.env')
       } catch (error) {
         if (!cancelled) {
           setPhase({
@@ -471,9 +474,8 @@ export function App({
       try {
         const result = await verifyAndSaveKey(root, apiKey)
         if (cancelled) return
-        setWorkspace(result.workspace)
         addMessage({ tone: 'ok', text: `Workspace: ${result.workspace.name}` })
-        advanceAfterAuth()
+        settleOn(result.workspace, result.api_key, 'pasted', '.env')
       } catch (error) {
         if (cancelled) return
         const message =
@@ -610,8 +612,11 @@ export function App({
     if (phase.t !== 'analyze') return
     let cancelled = false
     const run = async (): Promise<void> => {
-      const found = findExistingApiKey(root)
-      if (found == null) {
+      // Prefer the key this run connected with: re-reading here would pick up
+      // SEAM_API_KEY, which can belong to a different workspace than the one
+      // just chosen, and silently plan the integration against that one.
+      const apiKey = apiKeyRef.current ?? findExistingApiKey(root)?.api_key
+      if (apiKey == null) {
         addMessage({
           tone: 'warn',
           text: "Couldn't find your Seam API key to plan the integration.",
@@ -622,7 +627,7 @@ export function App({
 
       let currentSession: WizardInferenceSession
       try {
-        currentSession = await exchangeWizardInferenceToken(found.api_key)
+        currentSession = await exchangeWizardInferenceToken(apiKey)
       } catch (error) {
         if (!cancelled) {
           addMessage({
