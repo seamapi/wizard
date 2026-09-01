@@ -2,6 +2,11 @@ import { render } from 'ink-testing-library'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import { createMemoryAdapter, resetAdapter, setAdapter } from 'lib/adapter.js'
+import {
+  flushAnalytics,
+  resetAnalytics,
+  startAnalytics,
+} from 'lib/analytics.js'
 import { App } from 'lib/app.js'
 
 // A project root that does not exist, with no key in the environment, keeps the
@@ -15,8 +20,10 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  resetAnalytics()
   resetAdapter()
   vi.unstubAllEnvs()
+  vi.unstubAllGlobals()
 })
 
 test('App: opens on the welcome splash', () => {
@@ -30,4 +37,39 @@ test('App: opens on the welcome splash', () => {
   } finally {
     unmount()
   }
+})
+
+test('App: reports the run it started and the screen it stopped on', async () => {
+  vi.stubEnv('SEAM_API_KEY', '')
+  const posted: Array<{ event: string; properties: Record<string, unknown> }> =
+    []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as {
+        events: Array<{ event: string; properties: Record<string, unknown> }>
+      }
+      posted.push(...body.events)
+      return new Response(null, { status: 200 })
+    }),
+  )
+  await startAnalytics({ command: 'seam wizard' })
+
+  // Mounted and then closed on the welcome splash: what a developer who runs
+  // the wizard and immediately quits leaves behind.
+  const { unmount } = render(<App root={NONEXISTENT_ROOT} />)
+  unmount()
+  await flushAnalytics()
+
+  expect(posted.map((event) => event.event)).toEqual([
+    'wizard_run_started',
+    'wizard_screen_viewed',
+    'wizard_run_finished',
+  ])
+  expect(posted[1]?.properties['screen']).toBe('welcome')
+  expect(posted[2]?.properties).toMatchObject({
+    outcome: 'abandoned',
+    last_screen: 'welcome',
+    reached_integration: false,
+  })
 })
