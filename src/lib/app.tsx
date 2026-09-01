@@ -993,6 +993,7 @@ export function App({
     return (
       <DoneScreen
         workspaceName={workspace?.name ?? 'your workspace'}
+        workspaceId={workspace?.workspace_id ?? null}
         outcome={finalResult}
         showCost={showCost}
       />

@@ -56,6 +56,7 @@ const SCREENS: Record<string, () => ReactElement> = {
   done: () => (
     <DoneScreen
       workspaceName='Acme Rentals'
+      workspaceId='0004449d-b669-46ac-b094-d530bda66641'
       outcome={{
         ok: true,
         costUsd: 1.24,
