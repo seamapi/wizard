@@ -159,6 +159,7 @@ The wizard is an [Ink] application under `src/lib`:
 - `app.tsx` is the state machine driving the run,
   one phase per step, and holds all of the rendering.
 - `steps/` holds the logic for each step, with no UI in it.
+- `analytics.ts` reports how far a run got (see [Analytics](#analytics)).
 - `version.ts` holds the package version reported by `--version`.
   It ships a `0.0.0` placeholder that `prepack.ts` replaces with the
   version from `package.json` when the package is packed,
@@ -180,6 +181,48 @@ View them with
 ```
 $ npm run
 ```
+
+### Analytics
+
+The wizard is a funnel, and `analytics.ts` measures how far a run gets
+and where it stops.
+Every phase the app enters is reported as `wizard_screen_viewed`,
+each decision along the way gets its own event,
+and `wizard_run_finished` closes the run with the screen it ended on —
+including `outcome: 'abandoned'` for a run left with Ctrl-C
+or a closed terminal.
+
+Events are queued and posted in batches to Seam,
+which forwards them to PostHog:
+a published CLI cannot hold a PostHog key,
+so the key, sampling, and rate limiting all stay server side.
+The endpoint is unauthenticated,
+because the earliest and most interesting events happen before the
+developer has connected a key at all:
+
+```
+POST {endpoint}/seam/wizard/v1/events
+{ "events": [{ "event": "…", "distinct_id": "…", "timestamp": "…", "properties": {} }] }
+```
+
+Events are in PostHog's own capture shape so a batch can be forwarded
+straight through.
+`distinct_id` is an anonymous install id
+kept in the host CLI's settings — it identifies an install, not a
+developer — and `properties.workspace_id` is present once a run has
+connected.
+
+Reporting is best effort and never affects a run:
+`track` does not throw or block the render,
+a batch that cannot be delivered is dropped,
+and a run posts nothing at all until `startAnalytics` has been called,
+which is why `--help`, `--version`, `--debug-screen`, and tests are
+silent.
+
+Nothing sent identifies the developer or their code:
+no API keys or key fingerprints, no project paths, no source code, no
+agent output, and not the free-text note the developer writes for the
+agent — only its length.
 
 ### Source code
 

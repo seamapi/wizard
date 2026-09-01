@@ -1,4 +1,9 @@
-export { readPreferredSdk, writePreferredSdk } from './config-store.js'
+export {
+  readInstallId,
+  readPreferredSdk,
+  writeInstallId,
+  writePreferredSdk,
+} from './config-store.js'
 export {
   type ConnectionSource,
   getProjectKey,

@@ -12,6 +12,13 @@ import {
 
 import { getAuth } from './adapter.js'
 import {
+  finishAnalytics,
+  setAnalyticsSdk,
+  setAnalyticsWorkspace,
+  track,
+  trackScreen,
+} from './analytics.js'
+import {
   ApiKeyError,
   exchangeWizardInferenceToken,
   getInferenceBaseUrl,
@@ -31,6 +38,7 @@ import {
 import { IntegrationModeScreen } from './screens/integration-mode.js'
 import { NoteScreen } from './screens/note.js'
 import { SetupProgress } from './screens/setup-progress.js'
+import { LEARN_CARD_SECONDS, LEARN_CARDS } from './screens/tips.js'
 import { WelcomeScreen } from './screens/welcome.js'
 import {
   analyzeProject,
@@ -180,6 +188,12 @@ export function App({
   )
 
   const planRef = useRef<ProjectPlan | null>(null)
+  // Start times for the durations the analytics events report: the install
+  // commands and the agent step running right now.
+  const installStartedAtRef = useRef(0)
+  const stepStartedAtRef = useRef(0)
+  // The plan the integration is running, so a step event can name its step.
+  const integrationStepsRef = useRef<IntegrationStep[]>([])
   // Mirrors integrateElapsedSec so the done event can read the final elapsed
   // time without a stale closure (the tick updates state, not this handler).
   const integrateElapsedRef = useRef(0)
@@ -190,6 +204,39 @@ export function App({
 
   const addMessage = (message: Msg): void =>
     setMessages((previous) => [...previous, message])
+
+  // How far the run got with the agent, for the event that closes the run. Read
+  // from the ref, so the unmount cleanup — which closes over the first render —
+  // reports the same thing a clean finish does.
+  const integrationOutcomeProperties = (): Record<string, unknown> => ({
+    reached_integration: finalResultRef.current != null,
+    integration_ok: finalResultRef.current?.ok ?? null,
+  })
+
+  // Open the run, then close it on unmount. The cleanup is what reports a run
+  // the developer walked out of: Ctrl-C unmounts the app without going through
+  // the final screen, and `finishAnalytics` only counts the first call, so a
+  // clean finish reports itself and this becomes a no-op.
+  useEffect(() => {
+    const project = projectRef.current
+    track('wizard_run_started', {
+      detected_sdk: project.detected_sdk,
+      js_package_manager: project.js_package_manager,
+      python_installer: project.python_installer,
+      is_tty: isRawModeSupported,
+      terminal_columns: dimensions.columns,
+      terminal_rows: dimensions.rows,
+    })
+    return () => {
+      finishAnalytics('abandoned', integrationOutcomeProperties())
+    }
+  }, [])
+
+  // The funnel: every phase the run enters, in order. Where a run stops is the
+  // last screen reported.
+  useEffect(() => {
+    trackScreen(phase.t)
+  }, [phase.t])
 
   // The final screen and the exit report carry the outcome + next steps now, so
   // finishing is just moving to the done phase.
@@ -223,7 +270,61 @@ export function App({
       note,
       framework,
     })
+    integrationStepsRef.current = steps
+    // The note itself is the developer's own prose about their product, so only
+    // whether they wrote one — and how much — is reported.
+    track('wizard_integration_started', {
+      mode: effectiveMode,
+      framework,
+      has_note: note != null,
+      note_length: note?.length ?? 0,
+      total_steps: steps.length,
+    })
     setPhase({ t: 'integrate', steps })
+  }
+
+  // An install either finished or the developer was told to run it themselves.
+  // Reported either way: a failing installer is a reason runs stall here.
+  const trackInstallFinished = (
+    target: 'sdk' | 'plugin',
+    ok: boolean,
+    properties: Record<string, unknown>,
+  ): void => {
+    track('wizard_install_finished', {
+      target,
+      ok,
+      duration_ms: Date.now() - installStartedAtRef.current,
+      ...properties,
+    })
+  }
+
+  // Which step of the run this was, and how long it took. The step's id comes
+  // from the plan by index: the failure event does not carry one.
+  const trackStepFinished = ({
+    index,
+    total,
+    status,
+    cost_usd: costUsd = null,
+    reason = null,
+  }: {
+    index: number
+    total: number
+    status: 'done' | 'failed'
+    cost_usd?: number | null
+    reason?: string | null
+  }): void => {
+    track('wizard_integration_step_finished', {
+      step_id: integrationStepsRef.current[index]?.id ?? null,
+      step_index: index,
+      total_steps: total,
+      status,
+      duration_ms:
+        stepStartedAtRef.current === 0
+          ? null
+          : Date.now() - stepStartedAtRef.current,
+      cost_usd: costUsd,
+      reason,
+    })
   }
 
   const handleIntegrateEvent = (event: IntegrateEvent): void => {
@@ -240,18 +341,31 @@ export function App({
       )
       setAgentLines([])
       setIntegrateIdleSec(0)
+      stepStartedAtRef.current = Date.now()
     } else if (event.kind === 'step_done') {
       setStepStates((previous) =>
         previous.map((step, index) =>
           index === event.index ? { ...step, status: 'done' } : step,
         ),
       )
+      trackStepFinished({
+        index: event.index,
+        total: event.total,
+        status: 'done',
+        cost_usd: event.cost_usd,
+      })
     } else if (event.kind === 'step_failed') {
       setStepStates((previous) =>
         previous.map((step, index) =>
           index === event.index ? { ...step, status: 'failed' } : step,
         ),
       )
+      trackStepFinished({
+        index: event.index,
+        total: event.total,
+        status: 'failed',
+        reason: event.reason,
+      })
       addMessage({
         tone: 'warn',
         text: `Step ${event.index + 1}/${event.total} stopped — ${event.reason}`,
@@ -287,6 +401,23 @@ export function App({
         doneSteps: doneCount,
         totalSteps: event.steps.length,
       }
+      track('wizard_integration_finished', {
+        ok: event.ok,
+        done_steps: doneCount,
+        total_steps: event.steps.length,
+        failed_step_ids: event.steps
+          .filter((step) => step.status === 'failed')
+          .map((step) => step.id),
+        duration_seconds: integrateElapsedRef.current,
+        cost_usd: event.cost_usd,
+        // How much of the tips deck the developer had time to read while the
+        // agent worked — the deck cycles on a timer, so it follows the run's
+        // length.
+        tip_cards_shown: Math.min(
+          LEARN_CARDS.length,
+          Math.floor(integrateElapsedRef.current / LEARN_CARD_SECONDS) + 1,
+        ),
+      })
       setFinalResult(outcome)
       // Captured in refs (not messages) so the final screen and the concise exit
       // report render them; the full run log is not replayed on exit.
@@ -336,6 +467,15 @@ export function App({
   ): void => {
     apiKeyRef.current = apiKey
     setWorkspace(settledWorkspace)
+    // Everything after this point is attributed to the workspace. The name is
+    // sent once, here, so the workspace can be labelled; the id rides along on
+    // every later event.
+    setAnalyticsWorkspace(settledWorkspace)
+    track('wizard_connected', {
+      source,
+      location,
+      workspace_name: settledWorkspace.name,
+    })
     saveConnection(root, {
       workspace: settledWorkspace,
       api_key: apiKey,
@@ -350,6 +490,8 @@ export function App({
     const detected = projectRef.current.detected_sdk
     if (detected != null) {
       setSdk(detected)
+      setAnalyticsSdk(detected)
+      track('wizard_sdk_selected', { sdk: detected, was_detected: true })
       addMessage({ tone: 'info', text: `Detected ${detected} project` })
       setPhase({ t: 'install-sdk' })
     } else {
@@ -374,6 +516,15 @@ export function App({
 
       const recorded = previous?.connection ?? null
 
+      // What the run starts from: whether the wizard has been here before, and
+      // whether it found a key it can use without asking.
+      track('wizard_init_finished', {
+        project_seen_before: recorded != null,
+        has_project_key: existing != null,
+        project_key_source: existing?.source ?? null,
+        has_cli_key: cliResult != null,
+      })
+
       if (recorded != null && existing != null) {
         const changes = compareConnection(recorded, {
           endpoint: auth.endpoint,
@@ -393,6 +544,9 @@ export function App({
           )
           return
         }
+        track('wizard_drift_shown', {
+          changes: changes.map((change) => change.what),
+        })
         setPhase({ t: 'drift', changes })
         return
       }
@@ -429,8 +583,13 @@ export function App({
       try {
         const result = await connectViaWeb(root, {
           onUrl: (url) => !cancelled && setBrowser((b) => ({ ...b, url })),
-          onReceived: () =>
-            !cancelled && setBrowser((b) => ({ ...b, received: true })),
+          onReceived: () => {
+            if (cancelled) return
+            // Between opening the browser and this, the developer is off in the
+            // Console. A run that never gets here is one that left there.
+            track('wizard_browser_key_received')
+            setBrowser((b) => ({ ...b, received: true }))
+          },
         })
         if (cancelled) return
         addMessage({
@@ -440,13 +599,15 @@ export function App({
         settleOn(result.workspace, result.api_key, 'browser', '.env')
       } catch (error) {
         if (!cancelled) {
-          setPhase({
-            t: 'error',
-            message:
-              error instanceof Error
-                ? error.message
-                : 'Browser connection failed.',
+          const message =
+            error instanceof Error
+              ? error.message
+              : 'Browser connection failed.'
+          track('wizard_connect_failed', {
+            method: 'browser',
+            reason: message,
           })
+          setPhase({ t: 'error', message })
         }
       }
     }
@@ -482,6 +643,12 @@ export function App({
           error instanceof ApiKeyError
             ? error.message
             : "Couldn't verify the key."
+        track('wizard_connect_failed', {
+          method: 'paste',
+          reason: message,
+          attempt: attemptRef.current,
+          gave_up: attemptRef.current >= MAX_ATTEMPTS,
+        })
         if (attemptRef.current >= MAX_ATTEMPTS) {
           setPhase({
             t: 'error',
@@ -515,15 +682,20 @@ export function App({
     let cancelled = false
     const command = installSeamSdkCommand(sdk, projectRef.current)
     const run = async (): Promise<void> => {
+      installStartedAtRef.current = Date.now()
       try {
         await runInstall(command, root, (line) => {
           if (!cancelled) {
             setInstallLines((previous) => [...previous.slice(-3), line])
           }
         })
-        if (!cancelled) addMessage({ tone: 'ok', text: 'Seam SDK installed' })
+        if (!cancelled) {
+          trackInstallFinished('sdk', true, { installer: command[0] ?? null })
+          addMessage({ tone: 'ok', text: 'Seam SDK installed' })
+        }
       } catch {
         if (!cancelled) {
+          trackInstallFinished('sdk', false, { installer: command[0] ?? null })
           addMessage({
             tone: 'warn',
             text: `Couldn't finish installing — run it yourself: ${command.join(' ')}`,
@@ -559,6 +731,7 @@ export function App({
 
     let cancelled = false
     const run = async (): Promise<void> => {
+      installStartedAtRef.current = Date.now()
       try {
         await runInstall(SEAM_PLUGIN_NPX_COMMAND, root, (line) => {
           if (!cancelled) {
@@ -566,10 +739,12 @@ export function App({
           }
         })
         if (!cancelled) {
+          trackInstallFinished('plugin', true, { plugin_target: target })
           addMessage({ tone: 'ok', text: 'Installed the Seam plugin skills' })
         }
       } catch {
         if (!cancelled) {
+          trackInstallFinished('plugin', false, { plugin_target: target })
           addMessage({
             tone: 'warn',
             text: `Couldn't install the plugin — run it yourself: ${SEAM_PLUGIN_NPX_COMMAND.join(' ')}`,
@@ -612,11 +787,13 @@ export function App({
     if (phase.t !== 'analyze') return
     let cancelled = false
     const run = async (): Promise<void> => {
+      const analyzeStartedAt = Date.now()
       // Prefer the key this run connected with: re-reading here would pick up
       // SEAM_API_KEY, which can belong to a different workspace than the one
       // just chosen, and silently plan the integration against that one.
       const apiKey = apiKeyRef.current ?? findExistingApiKey(root)?.api_key
       if (apiKey == null) {
+        track('wizard_analyze_failed', { reason: 'no_api_key' })
         addMessage({
           tone: 'warn',
           text: "Couldn't find your Seam API key to plan the integration.",
@@ -630,6 +807,10 @@ export function App({
         currentSession = await exchangeWizardInferenceToken(apiKey)
       } catch (error) {
         if (!cancelled) {
+          track('wizard_analyze_failed', {
+            reason: 'session_exchange_failed',
+            message: error instanceof Error ? error.message : 'unknown error',
+          })
           addMessage({
             tone: 'warn',
             text: `Couldn't start the AI session: ${
@@ -653,6 +834,16 @@ export function App({
         },
       })
       if (cancelled) return
+      track('wizard_analyze_finished', {
+        duration_ms: Date.now() - analyzeStartedAt,
+        framework: result.signals.framework,
+        analyzed_sdk: result.signals.sdk,
+        app_type_guess: result.recommendation.app_type_guess,
+        recommended_mode: result.recommendation.mode,
+        recommendation_source: result.recommendation.source,
+        seam_already_setup: result.signals.seam_already_setup,
+        used_onboarding: result.used_onboarding,
+      })
       setAnalysis(result)
       setMode(result.recommendation.mode)
 
@@ -705,6 +896,9 @@ export function App({
     const controller = new AbortController()
     const run = async (): Promise<void> => {
       if (session == null) {
+        if (!controller.signal.aborted) {
+          track('wizard_integration_failed', { reason: 'no_session' })
+        }
         addMessage({
           tone: 'warn',
           text: 'Lost the AI session — re-run the wizard to try again.',
@@ -735,6 +929,12 @@ export function App({
           const rawMessage =
             error instanceof Error ? error.message : 'unknown error'
           const isOverloaded = /overload|\b529\b|\b503\b/i.test(rawMessage)
+          track('wizard_integration_failed', {
+            reason: 'agent_error',
+            message: rawMessage,
+            is_overloaded: isOverloaded,
+            elapsed_seconds: integrateElapsedRef.current,
+          })
           // The wizard presents the model as "Seam AI"; the underlying provider
           // may change, so keep its name out of user-facing copy.
           const message = rawMessage.replace(/Claude Code|Claude/g, 'Seam AI')
@@ -840,6 +1040,12 @@ export function App({
   }
 
   const finish = (): void => {
+    finishAnalytics(phase.t === 'error' ? 'error' : 'completed', {
+      ...integrationOutcomeProperties(),
+      // The wizard's own last word: the pointer at the workspace assistant only
+      // appears once a run has a workspace to point at.
+      assistant_link_shown: phase.t === 'done' && workspace != null,
+    })
     onExit?.(buildExitReport())
     exit()
   }
@@ -850,6 +1056,7 @@ export function App({
   useEffect(() => {
     if (phase.t !== 'done' && phase.t !== 'error') return
     if (phase.t === 'error') {
+      track('wizard_error', { message: phase.message })
       addMessage({ tone: 'warn', text: phase.message })
       process.exitCode = 1
     }
@@ -961,6 +1168,13 @@ export function App({
         rationale={analysis?.recommendation.rationale ?? undefined}
         columns={dimensions.columns}
         onSelect={(item) => {
+          // Reported for every choice, including walking away from the agent:
+          // whether the developer takes the recommended mode is the point.
+          track('wizard_mode_selected', {
+            choice: item.value,
+            recommended_mode: recommended,
+            followed_recommendation: item.value === recommended,
+          })
           if (item.value === 'continue_on_own') {
             finishWithNextSteps()
             return
@@ -1047,6 +1261,7 @@ export function App({
   )
 
   function onConnectSelected(value: string): void {
+    track('wizard_connect_method_selected', { method: value })
     if (value === 'project' && projectKey != null) {
       useProjectKey(projectKey)
     } else if (value === 'cli' && cliKey != null) {
@@ -1139,6 +1354,7 @@ export function App({
                 { label: 'Quit, and leave everything as it is', value: 'quit' },
               ]}
               onSelect={(item) => {
+                track('wizard_drift_resolved', { choice: item.value })
                 if (item.value === 'project' && projectKey != null) {
                   useProjectKey(projectKey)
                 } else if (item.value === 'again') {
@@ -1181,6 +1397,12 @@ export function App({
                     ? item.value
                     : 'javascript'
                 setSdk(chosen)
+                setAnalyticsSdk(chosen)
+                track('wizard_sdk_selected', {
+                  sdk: chosen,
+                  was_detected: false,
+                  was_preferred: chosen === preferredSdk,
+                })
                 writePreferredSdk(chosen).catch(() => {})
                 addMessage({ tone: 'info', text: `SDK: ${chosen}` })
                 setPhase({ t: 'install-sdk' })
@@ -1201,6 +1423,9 @@ export function App({
                 { label: "No thanks, I'll do it myself", value: 'no' },
               ]}
               onSelect={(item) => {
+                track('wizard_integration_offer_answered', {
+                  answer: item.value,
+                })
                 if (item.value === 'yes') setPhase({ t: 'analyze' })
                 else finishWithNextSteps()
               }}

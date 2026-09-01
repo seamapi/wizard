@@ -1,6 +1,7 @@
 import parseArgs from 'minimist'
 
 import { loadAuth, setAdapter, type WizardAdapter } from './adapter.js'
+import { flushAnalytics, startAnalytics } from './analytics.js'
 import { renderApp, renderDebugScreen } from './render.js'
 import seamapiWizardVersion from './version.js'
 
@@ -74,11 +75,21 @@ const wizard = async (options: WizardOptions = {}): Promise<void> => {
 
   await loadAuth()
 
-  await renderApp({
-    root: cwd,
-    showCost: args['show-cost'] === true,
-    showChanges: args['show-changes'] === true,
-  })
+  // Only a real run is measured: --help, --version and --debug-screen have
+  // already returned above, so they start no run and send nothing.
+  await startAnalytics({ command: commandName })
+
+  try {
+    await renderApp({
+      root: cwd,
+      showCost: args['show-cost'] === true,
+      showChanges: args['show-changes'] === true,
+    })
+  } finally {
+    // The events that say how the run ended are queued as the app unmounts, so
+    // they are posted here — the last thing the wizard does, either way.
+    await flushAnalytics()
+  }
 }
 
 export default wizard
