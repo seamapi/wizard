@@ -51,6 +51,20 @@ export function looksLikeSeamApiKey(value: string): boolean {
   return /^seam_[A-Za-z0-9]/.test(value.trim())
 }
 
+// The Seam Console. Override the host with SEAM_CONSOLE_URL for dev. Read at
+// call time, not module load, so a test can stub the environment.
+export function getConsoleUrl(): string {
+  const url = process.env['SEAM_CONSOLE_URL'] ?? 'https://console.seam.co'
+  return url.replace(/\/+$/, '')
+}
+
+// The workspace's Seam Assistant: a chat that already knows the workspace's
+// devices, grants and events. Where the wizard points developers once setup is
+// done and there is something real to ask about.
+export function getAssistantUrl(workspaceId: string): string {
+  return `${getConsoleUrl()}/dashboard/${workspaceId}/assistant`
+}
+
 // Base URL for Seam-hosted inference. The embedded agent's SDK appends
 // /v1/messages; the exchange endpoint below lives at /v1/session.
 export function getInferenceBaseUrl(): string {

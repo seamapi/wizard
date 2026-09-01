@@ -3,12 +3,15 @@ import { createServer, type ServerResponse } from 'node:http'
 
 import open from 'open'
 
-import { getWorkspaceForApiKey, type SeamWorkspace } from 'lib/api.js'
+import {
+  getConsoleUrl,
+  getWorkspaceForApiKey,
+  type SeamWorkspace,
+} from 'lib/api.js'
 import { saveProjectApiKey } from 'lib/env-file.js'
 
 // The dashboard "wizard" page mints a key and posts it back to the local
-// callback. Override the console host with SEAM_CONSOLE_URL for dev.
-const CONSOLE_URL = process.env['SEAM_CONSOLE_URL'] ?? 'https://console.seam.co'
+// callback. The console host itself comes from getConsoleUrl().
 const CONSOLE_WIZARD_PATH = '/dashboard/wizard'
 const CALLBACK_TIMEOUT_MS = 5 * 60 * 1000
 
@@ -35,7 +38,7 @@ interface CallbackPayload {
 // created key back. Throws on error/timeout; resolves with the workspace.
 //
 // Wire protocol (must match the dashboard page): the page is opened at
-//   {CONSOLE_URL}/dashboard/wizard?cli_connect=1&cli_port=<PORT>&cli_state=<STATE>
+//   {console}/dashboard/wizard?cli_connect=1&cli_port=<PORT>&cli_state=<STATE>
 // and POSTs JSON { state, api_key } to http://127.0.0.1:<PORT>/ (CORS *).
 export async function connectViaWeb(
   root: string,
@@ -94,7 +97,7 @@ export async function connectViaWeb(
         reject(new Error('Could not start the local callback server.'))
         return
       }
-      const url = `${CONSOLE_URL}${CONSOLE_WIZARD_PATH}?cli_connect=1&cli_port=${address.port}&cli_state=${state}`
+      const url = `${getConsoleUrl()}${CONSOLE_WIZARD_PATH}?cli_connect=1&cli_port=${address.port}&cli_state=${state}`
       events.onUrl?.(url)
       open(url).catch(() => {
         // Browser may not open (headless/SSH) — the UI shows the URL to visit.

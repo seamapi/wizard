@@ -1,6 +1,8 @@
 import { Box, Text, useStdout } from 'ink'
 import type { ReactElement } from 'react'
 
+import { getAssistantUrl } from 'lib/api.js'
+
 export interface IntegrationOutcome {
   ok: boolean
   // Null when the model did not report a cost. Only shown when --show-cost is on.
@@ -15,12 +17,17 @@ export interface IntegrationOutcome {
 // `outcome` is null when the wizard finished without running the agent (e.g.
 // "Continue on my own"), so it just confirms setup. Self-centers like the
 // welcome splash rather than sitting under the header.
+//
+// `workspaceId` is null only when the run never settled on a workspace, in
+// which case there is no assistant to link to and the pointer is dropped.
 export function DoneScreen({
   workspaceName,
+  workspaceId,
   outcome,
   showCost,
 }: {
   workspaceName: string
+  workspaceId: string | null
   outcome: IntegrationOutcome | null
   showCost: boolean
 }): ReactElement {
@@ -44,10 +51,19 @@ export function DoneScreen({
           ? ` · $${outcome.costUsd.toFixed(2)}`
           : '')
 
+  // The workspace id is a UUID, so this URL runs to ~79 columns — too wide to
+  // sit inside the bordered card, whose border and padding would push it past
+  // an 80-column terminal. It goes underneath, where it gets the full width.
+  const assistantUrl = workspaceId == null ? null : getAssistantUrl(workspaceId)
+
   return (
+    // minHeight, not height: the card centers in a tall terminal but the box
+    // grows on a short one. A fixed height overflows instead, and Ink then
+    // overlaps the overflowing rows — which silently corrupts the URL below.
     <Box
-      height={rows}
+      minHeight={rows}
       width={columns}
+      flexDirection='column'
       alignItems='center'
       justifyContent='center'
     >
@@ -83,7 +99,31 @@ export function DoneScreen({
           </Text>
         )}
         <Text color='gray'>docs.seam.co · seam docs MCP in your editor</Text>
-        <Text> </Text>
+      </Box>
+      {assistantUrl != null && (
+        <Box
+          flexDirection='column'
+          alignItems='center'
+          width={columns}
+          marginTop={1}
+        >
+          <Text>
+            Ask{' '}
+            <Text bold color={accent}>
+              Seam AI
+            </Text>{' '}
+            about your workspace — devices, grants, events
+          </Text>
+          <Text color='cyan' wrap='truncate-middle'>
+            {assistantUrl}
+          </Text>
+        </Box>
+      )}
+      {/* A margin, not a blank <Text> </Text>: this column is vertically
+          centered, and when that offset lands on a half row Ink overlaps the
+          rows it paints. A blank Text paints a real space, which lands mid-URL
+          above and silently corrupts it. A margin paints nothing. */}
+      <Box marginTop={1}>
         <Text color='gray'>Press any key to exit</Text>
       </Box>
     </Box>
