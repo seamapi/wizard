@@ -226,3 +226,7 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# Git worktrees created by tooling in this checkout. They are separate
+# checkouts, not wizard source, and must not be linted or formatted here.
+.claude/worktrees/
