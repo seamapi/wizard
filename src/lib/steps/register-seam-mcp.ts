@@ -1,5 +1,7 @@
 import { runInstall } from 'lib/run-install.js'
 
+import type { PluginTarget } from './install-seam-plugin.js'
+
 // The authenticated Seam MCP. Unlike the anonymous https://mcp.seam.co/mcp the
 // plugin and the embedded harnesses use, this endpoint answers an unauthenticated
 // request with 401 + WWW-Authenticate, which is what makes a coding agent start
@@ -14,6 +16,13 @@ export const AUTHENTICATED_SEAM_MCP_URL =
 // 'failed' is the caller's outcome when the registration step itself threw, so
 // the developer got neither a registration nor a snippet.
 export type McpRegistration = 'claude_cli' | 'printed' | 'failed'
+
+// A line for the Ink app to render. The tones are the app's own Msg tones minus
+// 'ok', which is reserved there for a step that actually succeeded.
+export interface McpNotice {
+  tone: 'info' | 'warn' | 'plain'
+  text: string
+}
 
 export type RunCommand = (
   command: string[],
@@ -80,4 +89,46 @@ export async function registerSeamMcpWithClaudeCli({
   } catch {
     return 'printed'
   }
+}
+
+export function buildMcpRegistrationNotices({
+  target,
+  registration,
+}: {
+  target: PluginTarget
+  registration: McpRegistration
+}): McpNotice[] {
+  if (registration === 'claude_cli') {
+    return [
+      {
+        tone: 'info',
+        text: 'Registered the Seam MCP for Claude Code in .mcp.json (project scope)',
+      },
+    ]
+  }
+
+  const heading: McpNotice =
+    registration === 'failed'
+      ? {
+          tone: 'warn',
+          text: `Couldn't register the Seam MCP — run it yourself: ${CLAUDE_MCP_ADD_COMMAND.join(' ')}`,
+        }
+      : {
+          tone: 'info',
+          text: 'Add the Seam MCP to your coding agent — put this in .mcp.json:',
+        }
+
+  const snippetLines: McpNotice[] = mcpJsonSnippet()
+    .split('\n')
+    .map((line) => ({ tone: 'plain', text: `  ${line}` }))
+
+  const hintLines: McpNotice[] =
+    target === 'universal'
+      ? UNIVERSAL_MCP_HINTS.map((hint) => ({
+          tone: 'plain',
+          text: `  ${hint}`,
+        }))
+      : []
+
+  return [heading, ...snippetLines, ...hintLines]
 }

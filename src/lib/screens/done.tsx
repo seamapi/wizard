@@ -12,6 +12,11 @@ export interface IntegrationOutcome {
   totalSteps: number
 }
 
+// Verbatim from the merge design: the developer is told, before they leave, that
+// the agent authenticates itself rather than reusing the app's key.
+export const AGENT_CONSENT_NOTICE =
+  'Your coding agent will be asked to sign in to Seam and choose permissions the first time it uses a Seam tool.'
+
 // The last screen — a centered celebration of what just shipped. Shows how the
 // run went and how long it took; the cost is only shown with --show-cost.
 // `outcome` is null when the wizard finished without running the agent (e.g.
@@ -119,6 +124,15 @@ export function DoneScreen({
           </Text>
         </Box>
       )}
+      <Box
+        flexDirection='column'
+        alignItems='center'
+        width={columns}
+        marginTop={1}
+        paddingX={2}
+      >
+        <Text color='gray'>{AGENT_CONSENT_NOTICE}</Text>
+      </Box>
       {/* A margin, not a blank <Text> </Text>: this column is vertically
           centered, and when that offset lands on a half row Ink overlaps the
           rows it paints. A blank Text paints a real space, which lands mid-URL

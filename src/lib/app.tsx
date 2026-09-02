@@ -78,6 +78,11 @@ import {
 } from './steps/install-seam-plugin.js'
 import { type IntegrateEvent, runIntegration } from './steps/integrate.js'
 import {
+  buildMcpRegistrationNotices,
+  type McpRegistration,
+  registerSeamMcpWithClaudeCli,
+} from './steps/register-seam-mcp.js'
+import {
   type ProjectPlan,
   readPreferredSdk,
   readProjectRecord,
@@ -722,47 +727,74 @@ export function App({
     }
   }, [phase.t, sdk])
 
-  // install the official Seam plugin skills, then finish. We always run the
-  // universal installer (works everywhere); for Claude Code we additionally
-  // point at the native /plugin path, which also wires up the seam-docs MCP.
+  // install the official Seam plugin skills, then register the authenticated
+  // Seam MCP so the developer's own agent gets a delegated grant instead of
+  // reading the app's key out of .env. For Claude Code we additionally point at
+  // the native /plugin path, which wires up the anonymous docs MCP.
   useEffect(() => {
     if (phase.t !== 'install-plugin') return
     const target = detectPluginTarget(root)
 
     let cancelled = false
+    const streamLine = (line: string): void => {
+      if (!cancelled) {
+        setInstallLines((previous) => [...previous.slice(-3), line])
+      }
+    }
     const run = async (): Promise<void> => {
       installStartedAtRef.current = Date.now()
+      let skillsInstalled = true
       try {
-        await runInstall(SEAM_PLUGIN_NPX_COMMAND, root, (line) => {
-          if (!cancelled) {
-            setInstallLines((previous) => [...previous.slice(-3), line])
-          }
-        })
-        if (!cancelled) {
-          trackInstallFinished('plugin', true, { plugin_target: target })
-          addMessage({ tone: 'ok', text: 'Installed the Seam plugin skills' })
-        }
+        await runInstall(SEAM_PLUGIN_NPX_COMMAND, root, streamLine)
       } catch {
-        if (!cancelled) {
-          trackInstallFinished('plugin', false, { plugin_target: target })
-          addMessage({
-            tone: 'warn',
-            text: `Couldn't install the plugin — run it yourself: ${SEAM_PLUGIN_NPX_COMMAND.join(' ')}`,
+        skillsInstalled = false
+      }
+      if (cancelled) return
+
+      addMessage(
+        skillsInstalled
+          ? { tone: 'ok', text: 'Installed the Seam plugin skills' }
+          : {
+              tone: 'warn',
+              text: `Couldn't install the plugin — run it yourself: ${SEAM_PLUGIN_NPX_COMMAND.join(' ')}`,
+            },
+      )
+
+      let registration: McpRegistration = 'printed'
+      if (target === 'claude-code') {
+        try {
+          registration = await registerSeamMcpWithClaudeCli({
+            root,
+            onLine: streamLine,
           })
+        } catch {
+          registration = 'failed'
         }
       }
-      if (!cancelled) {
-        if (target === 'claude-code') {
-          addMessage({
-            tone: 'info',
-            text: 'Claude Code: for the native plugin + seam-docs MCP, you can also run:',
-          })
-          for (const command of CLAUDE_CODE_COMMANDS) {
-            addMessage({ tone: 'plain', text: `  ${command}` })
-          }
-        }
-        setPhase({ t: 'offer-integrate' })
+      if (cancelled) return
+
+      trackInstallFinished('plugin', skillsInstalled, {
+        plugin_target: target,
+        mcp_registration: registration,
+      })
+      for (const notice of buildMcpRegistrationNotices({
+        target,
+        registration,
+      })) {
+        addMessage(notice)
       }
+
+      setInstallLines([])
+      if (target === 'claude-code') {
+        addMessage({
+          tone: 'info',
+          text: 'Claude Code: for the native plugin + seam-docs MCP, you can also run:',
+        })
+        for (const command of CLAUDE_CODE_COMMANDS) {
+          addMessage({ tone: 'plain', text: `  ${command}` })
+        }
+      }
+      setPhase({ t: 'offer-integrate' })
     }
     run().catch((error: unknown) => {
       if (cancelled) return

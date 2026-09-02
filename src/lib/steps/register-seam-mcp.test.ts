@@ -2,6 +2,7 @@ import { expect, test } from 'vitest'
 
 import {
   AUTHENTICATED_SEAM_MCP_URL,
+  buildMcpRegistrationNotices,
   CLAUDE_MCP_ADD_COMMAND,
   mcpJsonSnippet,
   registerSeamMcpWithClaudeCli,
@@ -132,4 +133,57 @@ test('registerSeamMcpWithClaudeCli streams the command output it is given', asyn
   })
 
   expect(lines).toEqual(['Added HTTP MCP server seam'])
+})
+
+test('buildMcpRegistrationNotices confirms a CLI registration without reprinting it', () => {
+  const notices = buildMcpRegistrationNotices({
+    target: 'claude-code',
+    registration: 'claude_cli',
+  })
+
+  expect(notices).toHaveLength(1)
+  expect(notices[0]?.tone).toBe('info')
+  expect(notices[0]?.text).toContain('Registered the Seam MCP')
+  expect(notices.map((notice) => notice.text).join('\n')).not.toContain(
+    'mcpServers',
+  )
+})
+
+test('buildMcpRegistrationNotices prints the snippet when the CLI could not register', () => {
+  const notices = buildMcpRegistrationNotices({
+    target: 'claude-code',
+    registration: 'printed',
+  })
+  const text = notices.map((notice) => notice.text).join('\n')
+
+  expect(text).toContain('.mcp.json')
+  expect(text).toContain('https://mcp.seam.co/mcp/authenticated')
+  expect(JSON.parse(mcpJsonSnippet())).toBeTruthy()
+  // A Claude Code project does not need another agent's config file named at it.
+  expect(text).not.toContain('opencode.json')
+})
+
+test('buildMcpRegistrationNotices adds the per-tool hints for a universal project', () => {
+  const text = buildMcpRegistrationNotices({
+    target: 'universal',
+    registration: 'printed',
+  })
+    .map((notice) => notice.text)
+    .join('\n')
+
+  for (const hint of UNIVERSAL_MCP_HINTS) {
+    expect(text).toContain(hint)
+  }
+})
+
+test('buildMcpRegistrationNotices warns and prints when registration failed', () => {
+  const notices = buildMcpRegistrationNotices({
+    target: 'claude-code',
+    registration: 'failed',
+  })
+  const text = notices.map((notice) => notice.text).join('\n')
+
+  expect(notices[0]?.tone).toBe('warn')
+  expect(text).toContain(CLAUDE_MCP_ADD_COMMAND.join(' '))
+  expect(text).toContain('https://mcp.seam.co/mcp/authenticated')
 })

@@ -1,7 +1,7 @@
 import { render } from 'ink-testing-library'
 import { afterEach, expect, test, vi } from 'vitest'
 
-import { DoneScreen } from './done.js'
+import { AGENT_CONSENT_NOTICE, DoneScreen } from './done.js'
 
 const WORKSPACE_ID = '0004449d-b669-46ac-b094-d530bda66641'
 
@@ -66,4 +66,28 @@ test('DoneScreen: omits the assistant link without a workspace', () => {
   } finally {
     unmount()
   }
+})
+
+test('DoneScreen: says the agent will sign in and choose permissions', () => {
+  const { lastFrame, unmount } = render(
+    <DoneScreen
+      workspaceName='Acme'
+      workspaceId={WORKSPACE_ID}
+      outcome={null}
+      showCost={false}
+    />,
+  )
+  try {
+    // Ink wraps the sentence across rows, so compare on collapsed whitespace.
+    const frame = (lastFrame() ?? '').replace(/\s+/g, ' ')
+    expect(frame).toContain(AGENT_CONSENT_NOTICE)
+  } finally {
+    unmount()
+  }
+})
+
+test('AGENT_CONSENT_NOTICE is the copy the merge design specifies', () => {
+  expect(AGENT_CONSENT_NOTICE).toBe(
+    'Your coding agent will be asked to sign in to Seam and choose permissions the first time it uses a Seam tool.',
+  )
 })
