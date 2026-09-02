@@ -4,6 +4,7 @@ import {
   AUTHENTICATED_SEAM_MCP_URL,
   CLAUDE_MCP_ADD_COMMAND,
   mcpJsonSnippet,
+  registerSeamMcpWithClaudeCli,
   SEAM_MCP_SERVER_NAME,
   UNIVERSAL_MCP_HINTS,
 } from './register-seam-mcp.js'
@@ -71,4 +72,64 @@ test('nothing this module emits could carry an API key', () => {
     expect(emitted).not.toContain('SEAM_API_KEY')
     expect(emitted).not.toMatch(/seam_[A-Za-z0-9]/)
   }
+})
+
+test('registerSeamMcpWithClaudeCli reports claude_cli after a clean run', async () => {
+  const calls: Array<{ command: string[]; cwd: string }> = []
+
+  const registration = await registerSeamMcpWithClaudeCli({
+    root: '/tmp/seam-wizard-project',
+    onLine: () => {},
+    runCommand: async (command, cwd) => {
+      calls.push({ command, cwd })
+    },
+  })
+
+  expect(registration).toBe('claude_cli')
+  expect(calls).toEqual([
+    {
+      command: CLAUDE_MCP_ADD_COMMAND,
+      cwd: '/tmp/seam-wizard-project',
+    },
+  ])
+})
+
+// The developer may not have the Claude Code CLI on PATH at all: spawn rejects
+// with ENOENT before anything runs, and the wizard has to fall back to printing.
+test('registerSeamMcpWithClaudeCli reports printed when the binary is missing', async () => {
+  const registration = await registerSeamMcpWithClaudeCli({
+    root: '/tmp/seam-wizard-project',
+    onLine: () => {},
+    runCommand: async () => {
+      throw Object.assign(new Error('spawn claude ENOENT'), { code: 'ENOENT' })
+    },
+  })
+
+  expect(registration).toBe('printed')
+})
+
+test('registerSeamMcpWithClaudeCli reports printed on a non-zero exit', async () => {
+  const registration = await registerSeamMcpWithClaudeCli({
+    root: '/tmp/seam-wizard-project',
+    onLine: () => {},
+    runCommand: async () => {
+      throw new Error('claude exited with code 1')
+    },
+  })
+
+  expect(registration).toBe('printed')
+})
+
+test('registerSeamMcpWithClaudeCli streams the command output it is given', async () => {
+  const lines: string[] = []
+
+  await registerSeamMcpWithClaudeCli({
+    root: '/tmp/seam-wizard-project',
+    onLine: (line) => lines.push(line),
+    runCommand: async (_command, _cwd, onLine) => {
+      onLine('Added HTTP MCP server seam')
+    },
+  })
+
+  expect(lines).toEqual(['Added HTTP MCP server seam'])
 })

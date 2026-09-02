@@ -1,3 +1,5 @@
+import { runInstall } from 'lib/run-install.js'
+
 // The authenticated Seam MCP. Unlike the anonymous https://mcp.seam.co/mcp the
 // plugin and the embedded harnesses use, this endpoint answers an unauthenticated
 // request with 401 + WWW-Authenticate, which is what makes a coding agent start
@@ -5,6 +7,19 @@
 // borrowing the app's key from .env.
 export const AUTHENTICATED_SEAM_MCP_URL =
   'https://mcp.seam.co/mcp/authenticated'
+
+// What the run did about MCP registration, as reported on
+// wizard_install_finished. 'printed' covers both fallbacks — a missing or
+// failing CLI, and a non-Claude-Code project that only gets the snippet.
+// 'failed' is the caller's outcome when the registration step itself threw, so
+// the developer got neither a registration nor a snippet.
+export type McpRegistration = 'claude_cli' | 'printed' | 'failed'
+
+export type RunCommand = (
+  command: string[],
+  cwd: string,
+  onLine: (line: string) => void,
+) => Promise<void>
 
 export const SEAM_MCP_SERVER_NAME = 'seam'
 
@@ -45,3 +60,24 @@ export const UNIVERSAL_MCP_HINTS = [
   `Codex — add [mcp_servers.${SEAM_MCP_SERVER_NAME}] with url = "${AUTHENTICATED_SEAM_MCP_URL}" to ~/.codex/config.toml`,
   `OpenCode — add "${SEAM_MCP_SERVER_NAME}": { "type": "remote", "url": "${AUTHENTICATED_SEAM_MCP_URL}" } under "mcp" in opencode.json`,
 ] as const
+
+// Register the authenticated MCP with the Claude Code CLI, in the project the
+// wizard is setting up. Any spawn failure — no `claude` on PATH (ENOENT), or a
+// non-zero exit — is a fallback, not an error: the caller prints the snippet
+// instead. `runCommand` is injected so a test can drive both outcomes.
+export async function registerSeamMcpWithClaudeCli({
+  root,
+  onLine,
+  runCommand = runInstall,
+}: {
+  root: string
+  onLine: (line: string) => void
+  runCommand?: RunCommand
+}): Promise<'claude_cli' | 'printed'> {
+  try {
+    await runCommand(CLAUDE_MCP_ADD_COMMAND, root, onLine)
+    return 'claude_cli'
+  } catch {
+    return 'printed'
+  }
+}
