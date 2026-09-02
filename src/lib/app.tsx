@@ -26,7 +26,12 @@ import {
   type SeamWorkspace,
   type WizardInferenceSession,
 } from './api.js'
-import { ensureProjectEnvConventions, findExistingApiKey } from './env-file.js'
+import {
+  ensureProjectEnvConventions,
+  ENV_SYMLINK_REFUSAL_MESSAGE,
+  findExistingApiKey,
+  type ProjectEnvResult,
+} from './env-file.js'
 import { runInstall } from './run-install.js'
 import { AnalyzeScreen } from './screens/analyze.js'
 import { DoneScreen, type IntegrationOutcome } from './screens/done.js'
@@ -209,6 +214,12 @@ export function App({
 
   const addMessage = (message: Msg): void =>
     setMessages((previous) => [...previous, message])
+
+  const reportEnvWrite = (result: ProjectEnvResult): void => {
+    if (result.env === 'symlink-refused') {
+      addMessage({ tone: 'warn', text: ENV_SYMLINK_REFUSAL_MESSAGE })
+    }
+  }
 
   // How far the run got with the agent, for the event that closes the run. Read
   // from the ref, so the unmount cleanup — which closes over the first render —
@@ -433,7 +444,7 @@ export function App({
 
   const useCliKey = (found: CliKeyResult): void => {
     try {
-      saveVerifiedKey(root, found.api_key)
+      reportEnvWrite(saveVerifiedKey(root, found.api_key))
       addMessage({
         tone: 'ok',
         text: `Using your Seam CLI login · workspace ${found.workspace.name} · saved to .env`,
@@ -450,7 +461,7 @@ export function App({
   const useProjectKey = (found: ExistingKeyResult): void => {
     try {
       if (found.source === 'environment') {
-        saveVerifiedKey(root, found.api_key)
+        reportEnvWrite(saveVerifiedKey(root, found.api_key))
       } else {
         ensureProjectEnvConventions(root)
       }
@@ -597,6 +608,7 @@ export function App({
           },
         })
         if (cancelled) return
+        reportEnvWrite(result.env)
         addMessage({
           tone: 'ok',
           text: `Connected · workspace ${result.workspace.name}`,
@@ -640,6 +652,7 @@ export function App({
       try {
         const result = await verifyAndSaveKey(root, apiKey)
         if (cancelled) return
+        reportEnvWrite(result.env)
         addMessage({ tone: 'ok', text: `Workspace: ${result.workspace.name}` })
         settleOn(result.workspace, result.api_key, 'pasted', '.env')
       } catch (error) {

@@ -1,7 +1,10 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-export type EnvWriteResult = 'created' | 'updated' | 'added'
+export type EnvWriteResult = 'created' | 'updated' | 'added' | 'symlink-refused'
+
+export const ENV_SYMLINK_REFUSAL_MESSAGE =
+  '.env is a symlink — the wizard did not write through it. Add SEAM_API_KEY to the real file yourself.'
 
 // dotenv files we look at for an existing key, in priority order.
 const ENV_FILE_NAMES = [
@@ -106,6 +109,11 @@ export function upsertEnvVar(
   value: string,
 ): EnvWriteResult {
   const line = `${key}=${value}`
+
+  const link = lstatSync(filePath, { throwIfNoEntry: false })
+  if (link?.isSymbolicLink() === true) {
+    return 'symlink-refused'
+  }
 
   if (!existsSync(filePath)) {
     writeFileSync(filePath, `${line}\n`)

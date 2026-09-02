@@ -1,4 +1,10 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import {
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -55,4 +61,18 @@ test('verifyAndSaveKey returns the trimmed key it saved, not the raw input', asy
   expect(readFileSync(join(dir, '.env'), 'utf8')).toContain(
     'SEAM_API_KEY=seam_padded_key',
   )
+})
+
+// The refusal is only useful if it reaches the Ink app, which reads it off the
+// result of the save.
+test('verifyAndSaveKey reports a symlinked .env instead of writing through it', async () => {
+  get.mockResolvedValue(workspace)
+  const targetPath = join(dir, 'shared-secrets.env')
+  writeFileSync(targetPath, 'OTHER=1\n')
+  symlinkSync(targetPath, join(dir, '.env'))
+
+  const result = await verifyAndSaveKey(dir, 'seam_pasted_key')
+
+  expect(result.env.env).toBe('symlink-refused')
+  expect(readFileSync(targetPath, 'utf8')).toBe('OTHER=1\n')
 })
