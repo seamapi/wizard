@@ -28,7 +28,7 @@ export function upsertSeamMcp(root: string): void {
 
   config.mcpServers = {
     ...servers,
-    'seam-docs': { url: SEAM_MCP_URL, lifecycle: 'eager' },
+    seam: { url: SEAM_MCP_URL, lifecycle: 'eager' },
   }
   mkdirSync(configDir, { recursive: true })
   writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`)
@@ -71,7 +71,7 @@ const PRICES_USD_PER_MTOK: Record<string, { input: number; output: number }> = {
 
 // The challenger harness: drives the integration with pi.dev's coding agent
 // (@earendil-works/pi-coding-agent), pointed at the same Seam inference proxy
-// (registered as an anthropic-messages provider) and the same seam-docs MCP, so
+// (registered as an anthropic-messages provider) and the same Seam MCP, so
 // it is a fair A/B against the anthropic control. Heavy deps are imported lazily
 // so selecting `anthropic` never loads them.
 export const piHarness: Harness = {

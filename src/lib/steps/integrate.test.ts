@@ -15,7 +15,7 @@ test('buildSystemAppend bootstraps the Wizard prompt with implementation context
       const prompt = buildSystemAppend(sdk, 'Test Workspace', framework, mode)
 
       expect(prompt).toContain(JSON.stringify({ framework, sdk, mode }))
-      expect(prompt).toContain('mcp__seam-docs__get_prompt with no arguments')
+      expect(prompt).toContain('mcp__seam__get_prompt with no arguments')
       expect(prompt).not.toMatch(
         /search_prompts|get_prompt_context|list_example_apps|get_example_app|list_context_packs|get_context_pack/,
       )

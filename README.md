@@ -22,7 +22,7 @@ Seam integration. Run inside a project, it will:
    for JavaScript, or pip, poetry, or uv for Python.
 4. **Install the Seam plugin** —
    [`seamapi/seam-plugin`](https://github.com/seamapi/seam-plugin),
-   which provides the Seam integration skills and the `seam-docs` MCP
+   which provides the Seam integration skills and the `seam` MCP
    for the developer's AI coding assistant.
    Claude Code is detected via `.claude` or `CLAUDE.md`,
    in which case the wizard prints the slash commands to run,

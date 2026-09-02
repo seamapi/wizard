@@ -250,7 +250,7 @@ export function buildSystemAppend(
     `and their SEAM_API_KEY is already saved in a local .env file. This is a ${language} project.`,
     `Implementation selection context: ${JSON.stringify(implementationContext)}.`,
     ``,
-    `Before writing any code, call mcp__seam-docs__get_prompt with no arguments and follow`,
+    `Before writing any code, call mcp__seam__get_prompt with no arguments and follow`,
     `the returned Wizard prompt for this run.`,
   ].join('\n')
 }

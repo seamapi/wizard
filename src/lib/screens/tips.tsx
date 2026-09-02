@@ -107,7 +107,7 @@ export const LEARN_CARDS: LearnCard[] = [
   {
     title: 'Ask your editor',
     lines: [
-      'The seam-docs MCP is now',
+      'The Seam MCP is now',
       'in your AI assistant.',
       '',
       'Ask it for the exact API',

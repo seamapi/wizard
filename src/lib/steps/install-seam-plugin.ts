@@ -3,7 +3,7 @@ import { join } from 'node:path'
 
 export type PluginTarget = 'claude-code' | 'universal'
 
-// The official Seam plugin: 3 integration skills + the seam-docs MCP.
+// The official Seam plugin: 3 integration skills + the Seam MCP.
 const SEAM_PLUGIN = 'seamapi/seam-plugin'
 
 // Install the plugin's three skills into .claude/skills. We must be
@@ -24,7 +24,7 @@ export const SEAM_PLUGIN_NPX_COMMAND = [
 
 // Claude Code installs plugins via in-app slash commands, which an external CLI
 // can't drive — so we print these for the user to run. This path also wires up
-// the seam-docs MCP.
+// the Seam MCP.
 export const CLAUDE_CODE_COMMANDS = [
   '/plugin marketplace add seamapi/seam-plugin',
   '/plugin install seam@seamapi',

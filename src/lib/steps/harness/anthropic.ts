@@ -10,17 +10,10 @@ const SEAM_MCP_URL = 'https://mcp.seam.co/mcp?agent=wizard'
 
 // Read/search/write + the docs MCP. Deliberately no Bash, no subagents, no task
 // tools: the agent writes integration code, it does not run the developer's
-// shell. No WebFetch either — the agent gets its references from the seam-docs
-// MCP, so arbitrary web egress is unnecessary and only widens the exfiltration
-// surface. `mcp__seam-docs__*` grants every seam-docs tool.
-const ALLOWED_TOOLS = [
-  'Read',
-  'Glob',
-  'Grep',
-  'Edit',
-  'Write',
-  'mcp__seam-docs__*',
-]
+// shell. No WebFetch either — the agent gets its references from the Seam MCP,
+// so arbitrary web egress is unnecessary and only widens the exfiltration
+// surface. `mcp__seam__*` grants every Seam tool.
+const ALLOWED_TOOLS = ['Read', 'Glob', 'Grep', 'Edit', 'Write', 'mcp__seam__*']
 
 // Hard block on the developer's secret files: a deny here overrides the broad
 // `Read` allow above and fires for every tool, so Read/Grep/Edit/Write can't
@@ -104,7 +97,7 @@ export const anthropicHarness: Harness = {
           PostToolUse: [{ hooks: [redactSecretsFromGrepOutput] }],
         },
         mcpServers: {
-          'seam-docs': {
+          seam: {
             type: 'http',
             url: SEAM_MCP_URL,
           },
