@@ -9,6 +9,13 @@ on:
         type: string
         required: false
         default: '24'
+    secrets:
+      posthog_project_key:
+        description: >-
+          Seam's PostHog project key, injected into the package when it is
+          packed. Without it the packed wizard reports no analytics, which is
+          what a pull request build should do.
+        required: false
     outputs:
       artifact_name:
         description: The artifact name.
@@ -30,6 +37,8 @@ jobs:
         run: npm run build
       - name: Package
         run: npm pack
+        env:
+          SEAM_WIZARD_POSTHOG_KEY: ${{ secrets.posthog_project_key }}
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:

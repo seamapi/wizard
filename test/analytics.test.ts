@@ -1,3 +1,5 @@
+import { gunzipSync } from 'node:zlib'
+
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import { createMemoryAdapter, resetAdapter, setAdapter } from 'lib/adapter.js'
@@ -27,26 +29,40 @@ interface CapturedEvent {
   properties: Record<string, unknown>
 }
 
-// Captures what crossed the wire: every request the analytics client posted,
-// flattened into the events it carried.
-const captureEvents = (): {
+interface CapturedRequest {
+  url: string
+  api_key: string
+  batch: CapturedEvent[]
+}
+
+// Captures what crossed the wire to PostHog. The SDK gzips its batches, so the
+// body is inflated back to the JSON the ingest endpoint receives.
+const captureRequests = (
+  respond: () => Response = () => new Response('{}', { status: 200 }),
+): {
+  requests: () => CapturedRequest[]
   events: () => CapturedEvent[]
-  requests: () => Array<{ url: string; body: { events: CapturedEvent[] } }>
 } => {
-  const requests: Array<{ url: string; body: { events: CapturedEvent[] } }> = []
+  const requests: CapturedRequest[] = []
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init: RequestInit) => {
-      requests.push({
-        url,
-        body: JSON.parse(String(init.body)) as { events: CapturedEvent[] },
-      })
-      return new Response(null, { status: 200 })
+      const { body } = init
+      const text =
+        typeof body === 'string'
+          ? body
+          : gunzipSync(body as Uint8Array).toString('utf8')
+      const payload = JSON.parse(text) as {
+        api_key: string
+        batch: CapturedEvent[]
+      }
+      requests.push({ url, ...payload })
+      return respond()
     }),
   )
   return {
     requests: () => requests,
-    events: () => requests.flatMap((request) => request.body.events),
+    events: () => requests.flatMap((request) => request.batch),
   }
 }
 
@@ -54,14 +70,16 @@ beforeEach(() => {
   setAdapter(createMemoryAdapter())
 })
 
-afterEach(() => {
+afterEach(async () => {
   resetAnalytics()
   resetAdapter()
+  await vi.waitFor(() => {})
   vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
 })
 
 test('sends nothing until a run has started', async () => {
-  const captured = captureEvents()
+  const captured = captureRequests()
 
   track('wizard_run_started')
   trackScreen('welcome')
@@ -71,8 +89,20 @@ test('sends nothing until a run has started', async () => {
   expect(captured.requests()).toEqual([])
 })
 
-test('posts a run as one batch of PostHog-shaped events', async () => {
-  const captured = captureEvents()
+test('reports nothing when the package carries no project key', async () => {
+  const captured = captureRequests()
+
+  await startAnalytics({ command: 'seam wizard' })
+  trackScreen('welcome')
+  finishAnalytics('abandoned')
+  await flushAnalytics()
+
+  expect(captured.requests()).toEqual([])
+})
+
+test("posts a run's events to Seam's PostHog project", async () => {
+  vi.stubEnv('SEAM_WIZARD_POSTHOG_KEY', 'phc_test_project')
+  const captured = captureRequests()
 
   await startAnalytics({ command: 'seam wizard' })
   trackScreen('welcome')
@@ -81,9 +111,8 @@ test('posts a run as one batch of PostHog-shaped events', async () => {
 
   const requests = captured.requests()
   expect(requests).toHaveLength(1)
-  expect(requests[0]?.url).toBe(
-    'https://connect.getseam.com/seam/wizard/v1/events',
-  )
+  expect(requests[0]?.url).toBe('https://e.seam.co/batch/')
+  expect(requests[0]?.api_key).toBe('phc_test_project')
 
   const events = captured.events()
   expect(events.map((event) => event.event)).toEqual([
@@ -97,12 +126,29 @@ test('posts a run as one batch of PostHog-shaped events', async () => {
   expect(events.map((event) => event.properties['screen_index'])).toEqual([
     0, 1,
   ])
-  expect(events[0]?.properties['command']).toBe('seam wizard')
+  expect(events[0]?.properties).toMatchObject({
+    source: 'seam_wizard_cli',
+    command: 'seam wizard',
+  })
   expect(events[0]?.timestamp).toEqual(expect.any(String))
 })
 
+test('can be pointed at another project and host', async () => {
+  vi.stubEnv('SEAM_WIZARD_POSTHOG_KEY', 'phc_local')
+  vi.stubEnv('SEAM_WIZARD_POSTHOG_HOST', 'http://127.0.0.1:8000')
+  const captured = captureRequests()
+
+  await startAnalytics({ command: 'seam wizard' })
+  track('wizard_run_started')
+  await flushAnalytics()
+
+  expect(captured.requests()[0]?.url).toBe('http://127.0.0.1:8000/batch/')
+  expect(captured.requests()[0]?.api_key).toBe('phc_local')
+})
+
 test('attributes every event to the same anonymous install', async () => {
-  const captured = captureEvents()
+  vi.stubEnv('SEAM_WIZARD_POSTHOG_KEY', 'phc_test_project')
+  const captured = captureRequests()
 
   await startAnalytics({ command: 'seam wizard' })
   track('wizard_run_started')
@@ -116,8 +162,10 @@ test('attributes every event to the same anonymous install', async () => {
   const [first, second] = captured.events()
   const installId = await readInstallId()
   expect(installId).toEqual(expect.any(String))
-  expect(first?.distinct_id).toBe(installId)
-  expect(second?.distinct_id).toBe(installId)
+  // Namespaced: a Console person's distinct_id is a UUID too, and a run is an
+  // install, never a person.
+  expect(first?.distinct_id).toBe(`wizard_cli_${installId ?? ''}`)
+  expect(second?.distinct_id).toBe(first?.distinct_id)
   // The install is the same; the run is not.
   expect(first?.properties['session_id']).not.toBe(
     second?.properties['session_id'],
@@ -125,6 +173,7 @@ test('attributes every event to the same anonymous install', async () => {
 })
 
 test('reports a run that could not store an install id', async () => {
+  vi.stubEnv('SEAM_WIZARD_POSTHOG_KEY', 'phc_test_project')
   setAdapter({
     ...createMemoryAdapter(),
     config: {
@@ -136,17 +185,18 @@ test('reports a run that could not store an install id', async () => {
       },
     },
   })
-  const captured = captureEvents()
+  const captured = captureRequests()
 
   await startAnalytics({ command: 'seam wizard' })
   track('wizard_run_started')
   await flushAnalytics()
 
-  expect(captured.events()[0]?.distinct_id).toEqual(expect.any(String))
+  expect(captured.events()[0]?.distinct_id).toMatch(/^wizard_cli_/)
 })
 
 test('carries the workspace and SDK on every event after they are known', async () => {
-  const captured = captureEvents()
+  vi.stubEnv('SEAM_WIZARD_POSTHOG_KEY', 'phc_test_project')
+  const captured = captureRequests()
 
   await startAnalytics({ command: 'seam wizard' })
   track('wizard_init_finished')
@@ -161,12 +211,14 @@ test('carries the workspace and SDK on every event after they are known', async 
     workspace_id: 'workspace-1',
     workspace_is_sandbox: false,
     sdk: 'python',
+    // Set from the SDK's own group argument, so a workspace's runs roll up.
     $groups: { workspace: 'workspace-1' },
   })
 })
 
 test('closes a run with where it got to, once', async () => {
-  const captured = captureEvents()
+  vi.stubEnv('SEAM_WIZARD_POSTHOG_KEY', 'phc_test_project')
+  const captured = captureRequests()
 
   await startAnalytics({ command: 'seam wizard' })
   trackScreen('welcome')
@@ -189,7 +241,8 @@ test('closes a run with where it got to, once', async () => {
 })
 
 test('truncates a long property instead of shipping it whole', async () => {
-  const captured = captureEvents()
+  vi.stubEnv('SEAM_WIZARD_POSTHOG_KEY', 'phc_test_project')
+  const captured = captureRequests()
 
   await startAnalytics({ command: 'seam wizard' })
   track('wizard_integration_failed', { message: 'x'.repeat(2000) })
@@ -200,32 +253,27 @@ test('truncates a long property instead of shipping it whole', async () => {
   expect(String(message).endsWith('…')).toBe(true)
 })
 
-test('drops a batch Seam rejects and keeps reporting the run', async () => {
-  const captured = captureEvents()
-  const fetchMock = vi.mocked(fetch)
-  fetchMock.mockResolvedValueOnce(new Response(null, { status: 500 }))
+test('a batch PostHog rejects never surfaces to the developer', async () => {
+  vi.stubEnv('SEAM_WIZARD_POSTHOG_KEY', 'phc_test_project')
+  captureRequests(() => new Response('{}', { status: 500 }))
 
   await startAnalytics({ command: 'seam wizard' })
   track('wizard_run_started')
+
   await expect(flushAnalytics()).resolves.toBeUndefined()
-
-  track('wizard_run_finished')
-  await flushAnalytics()
-
-  expect(captured.events().map((event) => event.event)).toEqual([
-    'wizard_run_finished',
-  ])
 })
 
-test('sends a full batch without waiting for the flush', async () => {
-  const captured = captureEvents()
+test('a run reports even when the network is gone', async () => {
+  vi.stubEnv('SEAM_WIZARD_POSTHOG_KEY', 'phc_test_project')
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => {
+      throw new Error('getaddrinfo ENOTFOUND e.seam.co')
+    }),
+  )
 
   await startAnalytics({ command: 'seam wizard' })
-  for (let index = 0; index < 20; index++) {
-    track('wizard_screen_viewed', { screen: `screen-${index}` })
-  }
-  // No flush: reaching the batch size is what posts it.
-  await vi.waitFor(() => {
-    expect(captured.events()).toHaveLength(20)
-  })
+  track('wizard_run_started')
+
+  await expect(flushAnalytics()).resolves.toBeUndefined()
 })

@@ -4,11 +4,20 @@ import { fileURLToPath } from 'node:url'
 import { $ } from 'execa'
 
 const versionFile = './src/lib/version.ts'
+const analyticsKeyFile = './src/lib/analytics-key.ts'
 
 const main = async (): Promise<void> => {
   const version = await injectVersion(resolveFile(versionFile))
   // eslint-disable-next-line no-console
   console.log(`✓ Version ${version} injected into ${versionFile}`)
+
+  const injected = await injectPostHogProjectKey(resolveFile(analyticsKeyFile))
+  // eslint-disable-next-line no-console
+  console.log(
+    injected
+      ? `✓ PostHog project key injected into ${analyticsKeyFile}`
+      : `▲ No SEAM_WIZARD_POSTHOG_KEY set — this package reports no analytics`,
+  )
 
   const { command } = await $`tsc --project tsconfig.prepack.json`
   // eslint-disable-next-line no-console
@@ -29,6 +38,23 @@ const injectVersion = async (path: string): Promise<string> => {
   )
 
   return version
+}
+
+// The key is a build input, not a checked-in constant: it comes from the
+// environment (a repository secret in the publish workflow). A pack without it
+// still succeeds — the package simply reports nothing — because a missing
+// analytics key must never be what stops a release.
+const injectPostHogProjectKey = async (path: string): Promise<boolean> => {
+  const key = process.env['SEAM_WIZARD_POSTHOG_KEY']
+  if (key == null || key.length === 0) return false
+
+  await replaceInFile(
+    path,
+    "const seamPostHogProjectKey = ''",
+    `const seamPostHogProjectKey = '${key}'`,
+  )
+
+  return true
 }
 
 const replaceInFile = async (
