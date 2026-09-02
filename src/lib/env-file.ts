@@ -6,6 +6,9 @@ export type EnvWriteResult = 'created' | 'updated' | 'added' | 'symlink-refused'
 export const ENV_SYMLINK_REFUSAL_MESSAGE =
   '.env is a symlink — the wizard did not write through it. Add SEAM_API_KEY to the real file yourself.'
 
+export const ENV_EXAMPLE_SYMLINK_REFUSAL_MESSAGE =
+  '.env.example is a symlink — the wizard did not write through it. Add SEAM_API_KEY to the real file yourself.'
+
 // dotenv files we look at for an existing key, in priority order.
 const ENV_FILE_NAMES = [
   '.env.local',

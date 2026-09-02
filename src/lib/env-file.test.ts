@@ -264,8 +264,7 @@ test('ensureGitignored: writes no git files outside a repository', () => {
 })
 
 // A symlinked .env usually points at a shared secrets file outside the repo.
-// Writing through it would edit that file — and it is exactly the case where
-// the wizard cannot know the destination is the developer's to change.
+// Writing through it would edit that file.
 test('upsertEnvVar refuses a symlinked file and leaves the target untouched', () => {
   const targetPath = join(dir, 'shared-secrets.env')
   const linkPath = join(dir, '.env')

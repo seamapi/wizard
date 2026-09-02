@@ -36,7 +36,7 @@ test('mcpJsonSnippet is valid JSON registering the authenticated URL', () => {
   })
 })
 
-test('UNIVERSAL_MCP_HINTS names one config file per supported tool', () => {
+test('UNIVERSAL_MCP_HINTS names the URL and config file per supported tool', () => {
   expect(UNIVERSAL_MCP_HINTS).toHaveLength(3)
   expect(UNIVERSAL_MCP_HINTS[0]).toContain('Cursor')
   expect(UNIVERSAL_MCP_HINTS[0]).toContain('.cursor/mcp.json')
@@ -45,6 +45,7 @@ test('UNIVERSAL_MCP_HINTS names one config file per supported tool', () => {
   expect(UNIVERSAL_MCP_HINTS[2]).toContain('OpenCode')
   expect(UNIVERSAL_MCP_HINTS[2]).toContain('opencode.json')
   for (const hint of UNIVERSAL_MCP_HINTS) {
+    expect(hint).toContain(AUTHENTICATED_SEAM_MCP_URL)
     expect(hint.split('\n')).toHaveLength(1)
   }
 })
@@ -149,28 +150,30 @@ test('buildMcpRegistrationNotices confirms a CLI registration without reprinting
   )
 })
 
-test('buildMcpRegistrationNotices prints the snippet when the CLI could not register', () => {
+test('buildMcpRegistrationNotices warns when the Claude Code CLI attempt fell back', () => {
   const notices = buildMcpRegistrationNotices({
     target: 'claude-code',
     registration: 'printed',
   })
   const text = notices.map((notice) => notice.text).join('\n')
 
-  expect(text).toContain('.mcp.json')
+  expect(notices[0]?.tone).toBe('warn')
+  expect(text).toContain(CLAUDE_MCP_ADD_COMMAND.join(' '))
   expect(text).toContain('https://mcp.seam.co/mcp/authenticated')
   expect(JSON.parse(mcpJsonSnippet())).toBeTruthy()
   // A Claude Code project does not need another agent's config file named at it.
   expect(text).not.toContain('opencode.json')
 })
 
-test('buildMcpRegistrationNotices adds the per-tool hints for a universal project', () => {
-  const text = buildMcpRegistrationNotices({
+test('buildMcpRegistrationNotices uses an info heading for a universal project', () => {
+  const notices = buildMcpRegistrationNotices({
     target: 'universal',
     registration: 'printed',
   })
-    .map((notice) => notice.text)
-    .join('\n')
+  const text = notices.map((notice) => notice.text).join('\n')
 
+  expect(notices[0]?.tone).toBe('info')
+  expect(text).toContain('.mcp.json')
   for (const hint of UNIVERSAL_MCP_HINTS) {
     expect(text).toContain(hint)
   }

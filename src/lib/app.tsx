@@ -28,6 +28,7 @@ import {
 } from './api.js'
 import {
   ensureProjectEnvConventions,
+  ENV_EXAMPLE_SYMLINK_REFUSAL_MESSAGE,
   ENV_SYMLINK_REFUSAL_MESSAGE,
   findExistingApiKey,
   type ProjectEnvResult,
@@ -79,11 +80,13 @@ import {
 import {
   CLAUDE_CODE_COMMANDS,
   detectPluginTarget,
+  type PluginTarget,
   SEAM_PLUGIN_NPX_COMMAND,
 } from './steps/install-seam-plugin.js'
 import { type IntegrateEvent, runIntegration } from './steps/integrate.js'
 import {
   buildMcpRegistrationNotices,
+  mcpJsonSnippet,
   type McpRegistration,
   registerSeamMcpWithClaudeCli,
 } from './steps/register-seam-mcp.js'
@@ -211,13 +214,31 @@ export function App({
   // the exit report reads them directly (state is batched/async at that point).
   const finalResultRef = useRef<IntegrationOutcome | null>(null)
   const finalSummaryRef = useRef('')
+  // Set when a symlinked .env or .env.example refused a write, so the exit
+  // report can carry the refusal and a truthful env hint instead of the
+  // transcript line the alternate screen discards.
+  const envRefusedRef = useRef(false)
+  // The install-plugin effect's MCP outcome, read by the exit report so a
+  // printed/failed registration's fallback survives past the alternate screen.
+  const mcpRegistrationRef = useRef<{
+    target: PluginTarget
+    registration: McpRegistration
+  } | null>(null)
 
   const addMessage = (message: Msg): void =>
     setMessages((previous) => [...previous, message])
 
-  const reportEnvWrite = (result: ProjectEnvResult): void => {
+  const reportEnvWrite = (
+    result: Pick<ProjectEnvResult, 'example'> &
+      Partial<Pick<ProjectEnvResult, 'env'>>,
+  ): void => {
     if (result.env === 'symlink-refused') {
       addMessage({ tone: 'warn', text: ENV_SYMLINK_REFUSAL_MESSAGE })
+      envRefusedRef.current = true
+    }
+    if (result.example === 'symlink-refused') {
+      addMessage({ tone: 'warn', text: ENV_EXAMPLE_SYMLINK_REFUSAL_MESSAGE })
+      envRefusedRef.current = true
     }
   }
 
@@ -444,10 +465,13 @@ export function App({
 
   const useCliKey = (found: CliKeyResult): void => {
     try {
-      reportEnvWrite(saveVerifiedKey(root, found.api_key))
+      const envResult = saveVerifiedKey(root, found.api_key)
+      reportEnvWrite(envResult)
+      const savedClause =
+        envResult.env === 'symlink-refused' ? '' : ' · saved to .env'
       addMessage({
         tone: 'ok',
-        text: `Using your Seam CLI login · workspace ${found.workspace.name} · saved to .env`,
+        text: `Using your Seam CLI login · workspace ${found.workspace.name}${savedClause}`,
       })
     } catch {
       addMessage({
@@ -463,7 +487,7 @@ export function App({
       if (found.source === 'environment') {
         reportEnvWrite(saveVerifiedKey(root, found.api_key))
       } else {
-        ensureProjectEnvConventions(root)
+        reportEnvWrite(ensureProjectEnvConventions(root))
       }
     } catch {
       // The project keeps working with the key it already has.
@@ -613,7 +637,12 @@ export function App({
           tone: 'ok',
           text: `Connected · workspace ${result.workspace.name}`,
         })
-        settleOn(result.workspace, result.api_key, 'browser', '.env')
+        settleOn(
+          result.workspace,
+          result.api_key,
+          'browser',
+          result.env.env === 'symlink-refused' ? null : '.env',
+        )
       } catch (error) {
         if (!cancelled) {
           const message =
@@ -654,7 +683,12 @@ export function App({
         if (cancelled) return
         reportEnvWrite(result.env)
         addMessage({ tone: 'ok', text: `Workspace: ${result.workspace.name}` })
-        settleOn(result.workspace, result.api_key, 'pasted', '.env')
+        settleOn(
+          result.workspace,
+          result.api_key,
+          'pasted',
+          result.env.env === 'symlink-refused' ? null : '.env',
+        )
       } catch (error) {
         if (cancelled) return
         const message =
@@ -786,6 +820,7 @@ export function App({
       }
       if (cancelled) return
 
+      mcpRegistrationRef.current = { target, registration }
       trackInstallFinished('plugin', skillsInstalled, {
         plugin_target: target,
         mcp_registration: registration,
@@ -1074,7 +1109,24 @@ export function App({
           : '')
       lines.push(stats)
     }
-    lines.push('', ...nextStepsLines(sdk, workspaceName))
+    lines.push('', ...nextStepsLines(sdk, workspaceName, envRefusedRef.current))
+    if (envRefusedRef.current) {
+      lines.push('', ENV_SYMLINK_REFUSAL_MESSAGE)
+    }
+
+    const mcpOutcome = mcpRegistrationRef.current
+    if (mcpOutcome?.registration === 'claude_cli') {
+      lines.push(
+        '',
+        'Seam MCP registered for Claude Code in .mcp.json (project scope).',
+      )
+    } else if (mcpOutcome != null) {
+      lines.push('', 'Connect your coding agent to Seam')
+      for (const line of mcpJsonSnippet().split('\n')) {
+        lines.push(`  ${line}`)
+      }
+    }
+
     if (showChanges && finalSummaryRef.current.length > 0) {
       lines.push('', 'What changed:')
       for (const line of finalSummaryRef.current.split('\n')) {
@@ -1536,9 +1588,14 @@ function projectKeyLabel(
 
 // Said only of what the login actually is: a token the wizard cannot hand to
 // a project, or one it could not verify.
-function nextStepsLines(sdk: Sdk | null, workspaceName: string): string[] {
-  const envHint =
-    sdk === 'python'
+function nextStepsLines(
+  sdk: Sdk | null,
+  workspaceName: string,
+  envRefused: boolean,
+): string[] {
+  const envHint = envRefused
+    ? 'Add SEAM_API_KEY to your real env file yourself; the wizard did not write through the symlinked .env.'
+    : sdk === 'python'
       ? "Make sure SEAM_API_KEY is exported (it's in .env)."
       : 'Your key is in .env (git ignored); .env.example tells the rest of your team what to set.'
   return [

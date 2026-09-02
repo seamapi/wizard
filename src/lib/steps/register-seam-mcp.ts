@@ -65,15 +65,15 @@ export function mcpJsonSnippet(): string {
 }
 
 export const UNIVERSAL_MCP_HINTS = [
-  `Cursor — add the same mcpServers block to .cursor/mcp.json`,
-  `Codex — add [mcp_servers.${SEAM_MCP_SERVER_NAME}] with url = "${AUTHENTICATED_SEAM_MCP_URL}" to ~/.codex/config.toml`,
-  `OpenCode — add "${SEAM_MCP_SERVER_NAME}": { "type": "remote", "url": "${AUTHENTICATED_SEAM_MCP_URL}" } under "mcp" in opencode.json`,
+  `Cursor — add a remote MCP server named "${SEAM_MCP_SERVER_NAME}" with URL ${AUTHENTICATED_SEAM_MCP_URL} in .cursor/mcp.json (see Cursor's MCP docs for the exact fields)`,
+  `Codex — add a remote MCP server named "${SEAM_MCP_SERVER_NAME}" with URL ${AUTHENTICATED_SEAM_MCP_URL} in ~/.codex/config.toml (see Codex's MCP docs for the exact fields)`,
+  `OpenCode — add a remote MCP server named "${SEAM_MCP_SERVER_NAME}" with URL ${AUTHENTICATED_SEAM_MCP_URL} in opencode.json (see OpenCode's MCP docs for the exact fields)`,
 ] as const
 
 // Register the authenticated MCP with the Claude Code CLI, in the project the
 // wizard is setting up. Any spawn failure — no `claude` on PATH (ENOENT), or a
 // non-zero exit — is a fallback, not an error: the caller prints the snippet
-// instead. `runCommand` is injected so a test can drive both outcomes.
+// instead.
 export async function registerSeamMcpWithClaudeCli({
   root,
   onLine,
@@ -108,7 +108,7 @@ export function buildMcpRegistrationNotices({
   }
 
   const heading: McpNotice =
-    registration === 'failed'
+    target === 'claude-code'
       ? {
           tone: 'warn',
           text: `Couldn't register the Seam MCP — run it yourself: ${CLAUDE_MCP_ADD_COMMAND.join(' ')}`,
