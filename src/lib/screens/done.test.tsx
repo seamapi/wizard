@@ -16,6 +16,7 @@ test('DoneScreen: points at the workspace assistant', () => {
       workspaceId={WORKSPACE_ID}
       outcome={null}
       showCost={false}
+      mcpRegistrationAttempted
     />,
   )
   try {
@@ -38,6 +39,7 @@ test('DoneScreen: honors SEAM_CONSOLE_URL for the assistant link', () => {
       workspaceId={WORKSPACE_ID}
       outcome={null}
       showCost={false}
+      mcpRegistrationAttempted
     />,
   )
   try {
@@ -57,6 +59,7 @@ test('DoneScreen: omits the assistant link without a workspace', () => {
       workspaceId={null}
       outcome={null}
       showCost={false}
+      mcpRegistrationAttempted
     />,
   )
   try {
@@ -75,12 +78,35 @@ test('DoneScreen: says the agent will sign in and choose permissions', () => {
       workspaceId={WORKSPACE_ID}
       outcome={null}
       showCost={false}
+      mcpRegistrationAttempted
     />,
   )
   try {
     // Ink wraps the sentence across rows, so compare on collapsed whitespace.
     const frame = (lastFrame() ?? '').replace(/\s+/g, ' ')
     expect(frame).toContain(AGENT_CONSENT_NOTICE)
+  } finally {
+    unmount()
+  }
+})
+
+// A run that quit (e.g. "Quit, and leave everything as it is" on the drift
+// screen) before the install-plugin phase never attempted MCP registration —
+// the notice describes that step, so it must not show for a run that never
+// reached it.
+test('DoneScreen: omits the consent notice when MCP registration was never attempted', () => {
+  const { lastFrame, unmount } = render(
+    <DoneScreen
+      workspaceName='Acme'
+      workspaceId={WORKSPACE_ID}
+      outcome={null}
+      showCost={false}
+      mcpRegistrationAttempted={false}
+    />,
+  )
+  try {
+    const frame = (lastFrame() ?? '').replace(/\s+/g, ' ')
+    expect(frame).not.toContain(AGENT_CONSENT_NOTICE)
   } finally {
     unmount()
   }

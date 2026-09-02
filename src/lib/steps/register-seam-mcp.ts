@@ -91,6 +91,33 @@ export async function registerSeamMcpWithClaudeCli({
   }
 }
 
+// The exit report's version of the above: plain lines (no tone), because the
+// alternate screen that carries buildMcpRegistrationNotices's messages is
+// discarded on exit — a printed 'universal' fallback would otherwise lose the
+// per-tool hints naming where Codex/Cursor/OpenCode keep their MCP config.
+export function buildMcpExitReportLines({
+  target,
+  registration,
+}: {
+  target: PluginTarget
+  registration: McpRegistration
+}): string[] {
+  if (registration === 'claude_cli') {
+    return ['Seam MCP registered for Claude Code in .mcp.json (project scope).']
+  }
+
+  const lines = ['Connect your coding agent to Seam']
+  for (const line of mcpJsonSnippet().split('\n')) {
+    lines.push(`  ${line}`)
+  }
+  if (target === 'universal') {
+    for (const hint of UNIVERSAL_MCP_HINTS) {
+      lines.push(`  ${hint}`)
+    }
+  }
+  return lines
+}
+
 export function buildMcpRegistrationNotices({
   target,
   registration,

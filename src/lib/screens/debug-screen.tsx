@@ -65,6 +65,7 @@ const SCREENS: Record<string, () => ReactElement> = {
         totalSteps: 4,
       }}
       showCost
+      mcpRegistrationAttempted
     />
   ),
   tasks: () => <TasksPreview />,

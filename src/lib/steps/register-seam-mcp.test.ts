@@ -2,6 +2,7 @@ import { expect, test } from 'vitest'
 
 import {
   AUTHENTICATED_SEAM_MCP_URL,
+  buildMcpExitReportLines,
   buildMcpRegistrationNotices,
   CLAUDE_MCP_ADD_COMMAND,
   mcpJsonSnippet,
@@ -189,4 +190,58 @@ test('buildMcpRegistrationNotices warns and prints when registration failed', ()
   expect(notices[0]?.tone).toBe('warn')
   expect(text).toContain(CLAUDE_MCP_ADD_COMMAND.join(' '))
   expect(text).toContain('https://mcp.seam.co/mcp/authenticated')
+})
+
+// The exit report survives past the alternate screen, so it has to carry the
+// same per-tool hints the live transcript showed a universal project — a
+// printed Claude Code project only ever needed the .mcp.json snippet, so it
+// gets that alone.
+test('buildMcpExitReportLines confirms a CLI registration without reprinting it', () => {
+  const lines = buildMcpExitReportLines({
+    target: 'claude-code',
+    registration: 'claude_cli',
+  })
+
+  expect(lines).toEqual([
+    'Seam MCP registered for Claude Code in .mcp.json (project scope).',
+  ])
+})
+
+test('buildMcpExitReportLines gives a printed Claude Code project the snippet only', () => {
+  const text = buildMcpExitReportLines({
+    target: 'claude-code',
+    registration: 'printed',
+  }).join('\n')
+
+  expect(text).toContain('Connect your coding agent to Seam')
+  expect(JSON.parse(mcpJsonSnippet())).toBeTruthy()
+  expect(text).toContain(AUTHENTICATED_SEAM_MCP_URL)
+  for (const hint of UNIVERSAL_MCP_HINTS) {
+    expect(text).not.toContain(hint)
+  }
+})
+
+test('buildMcpExitReportLines keeps the per-tool hints for a printed universal project', () => {
+  const text = buildMcpExitReportLines({
+    target: 'universal',
+    registration: 'printed',
+  }).join('\n')
+
+  expect(text).toContain('Connect your coding agent to Seam')
+  expect(text).toContain(AUTHENTICATED_SEAM_MCP_URL)
+  for (const hint of UNIVERSAL_MCP_HINTS) {
+    expect(text).toContain(hint)
+  }
+})
+
+test('buildMcpExitReportLines keeps the snippet for a universal project when registration failed', () => {
+  const text = buildMcpExitReportLines({
+    target: 'universal',
+    registration: 'failed',
+  }).join('\n')
+
+  expect(text).toContain(AUTHENTICATED_SEAM_MCP_URL)
+  for (const hint of UNIVERSAL_MCP_HINTS) {
+    expect(text).toContain(hint)
+  }
 })

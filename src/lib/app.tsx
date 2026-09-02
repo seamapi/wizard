@@ -85,8 +85,8 @@ import {
 } from './steps/install-seam-plugin.js'
 import { type IntegrateEvent, runIntegration } from './steps/integrate.js'
 import {
+  buildMcpExitReportLines,
   buildMcpRegistrationNotices,
-  mcpJsonSnippet,
   type McpRegistration,
   registerSeamMcpWithClaudeCli,
 } from './steps/register-seam-mcp.js'
@@ -1130,16 +1130,8 @@ export function App({
     }
 
     const mcpOutcome = mcpRegistrationRef.current
-    if (mcpOutcome?.registration === 'claude_cli') {
-      lines.push(
-        '',
-        'Seam MCP registered for Claude Code in .mcp.json (project scope).',
-      )
-    } else if (mcpOutcome != null) {
-      lines.push('', 'Connect your coding agent to Seam')
-      for (const line of mcpJsonSnippet().split('\n')) {
-        lines.push(`  ${line}`)
-      }
+    if (mcpOutcome != null) {
+      lines.push('', ...buildMcpExitReportLines(mcpOutcome))
     }
 
     if (showChanges && finalSummaryRef.current.length > 0) {
@@ -1322,6 +1314,7 @@ export function App({
         workspaceId={workspace?.workspace_id ?? null}
         outcome={finalResult}
         showCost={showCost}
+        mcpRegistrationAttempted={mcpRegistrationRef.current != null}
       />
     )
   }

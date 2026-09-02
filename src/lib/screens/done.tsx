@@ -30,11 +30,16 @@ export function DoneScreen({
   workspaceId,
   outcome,
   showCost,
+  mcpRegistrationAttempted,
 }: {
   workspaceName: string
   workspaceId: string | null
   outcome: IntegrationOutcome | null
   showCost: boolean
+  // The consent notice describes what the MCP registration step does, so it
+  // would mislead a run that quit (e.g. from the drift screen) before that
+  // step ever ran.
+  mcpRegistrationAttempted: boolean
 }): ReactElement {
   const { stdout } = useStdout()
   const rows = stdout?.rows ?? 24
@@ -124,15 +129,17 @@ export function DoneScreen({
           </Text>
         </Box>
       )}
-      <Box
-        flexDirection='column'
-        alignItems='center'
-        width={columns}
-        marginTop={1}
-        paddingX={2}
-      >
-        <Text color='gray'>{AGENT_CONSENT_NOTICE}</Text>
-      </Box>
+      {mcpRegistrationAttempted && (
+        <Box
+          flexDirection='column'
+          alignItems='center'
+          width={columns}
+          marginTop={1}
+          paddingX={2}
+        >
+          <Text color='gray'>{AGENT_CONSENT_NOTICE}</Text>
+        </Box>
+      )}
       {/* A margin, not a blank <Text> </Text>: this column is vertically
           centered, and when that offset lands on a half row Ink overlaps the
           rows it paints. A blank Text paints a real space, which lands mid-URL
