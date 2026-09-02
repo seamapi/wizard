@@ -1,3 +1,5 @@
+import { gunzipSync } from 'node:zlib'
+
 import { render } from 'ink-testing-library'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
@@ -41,16 +43,22 @@ test('App: opens on the welcome splash', () => {
 
 test('App: reports the run it started and the screen it stopped on', async () => {
   vi.stubEnv('SEAM_API_KEY', '')
+  // The key is injected when the package is packed, so a run from the source
+  // tree reports nothing without one.
+  vi.stubEnv('SEAM_WIZARD_POSTHOG_KEY', 'phc_test_project')
   const posted: Array<{ event: string; properties: Record<string, unknown> }> =
     []
   vi.stubGlobal(
     'fetch',
     vi.fn(async (_url: string, init: RequestInit) => {
-      const body = JSON.parse(String(init.body)) as {
-        events: Array<{ event: string; properties: Record<string, unknown> }>
+      // The PostHog SDK gzips its batches.
+      const body = JSON.parse(
+        gunzipSync(init.body as Uint8Array).toString('utf8'),
+      ) as {
+        batch: Array<{ event: string; properties: Record<string, unknown> }>
       }
-      posted.push(...body.events)
-      return new Response(null, { status: 200 })
+      posted.push(...body.batch)
+      return new Response('{}', { status: 200 })
     }),
   )
   await startAnalytics({ command: 'seam wizard' })

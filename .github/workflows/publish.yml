@@ -12,6 +12,8 @@ jobs:
   build:
     name: Build
     uses: ./.github/workflows/_build.yml
+    secrets:
+      posthog_project_key: ${{ secrets.SEAM_WIZARD_POSTHOG_KEY }}
   release:
     name: GitHub Releases
     runs-on: ubuntu-latest

@@ -108,6 +108,14 @@ await wizard({
 - `SEAM_CONSOLE_URL`: Points the browser connection flow at a
   non-production Console.
   Defaults to `https://console.seam.co`.
+- `SEAM_WIZARD_POSTHOG_KEY`: The PostHog project
+  [analytics](#analytics) report to.
+  A packed package carries the one injected at pack time;
+  set this to report from a checkout, or to report elsewhere.
+  Without it the wizard reports nothing.
+- `SEAM_WIZARD_POSTHOG_HOST`: Points analytics at another PostHog host,
+  e.g. a local instance.
+  Defaults to `https://e.seam.co`, the host the Console reports to.
 
 ## Development and Testing
 
@@ -159,7 +167,9 @@ The wizard is an [Ink] application under `src/lib`:
 - `app.tsx` is the state machine driving the run,
   one phase per step, and holds all of the rendering.
 - `steps/` holds the logic for each step, with no UI in it.
-- `analytics.ts` reports how far a run got (see [Analytics](#analytics)).
+- `analytics.ts` reports how far a run got (see [Analytics](#analytics)),
+  with `analytics-key.ts` holding the project key the package is packed
+  with.
 - `version.ts` holds the package version reported by `--version`.
   It ships a `0.0.0` placeholder that `prepack.ts` replaces with the
   version from `package.json` when the package is packed,
@@ -192,25 +202,29 @@ and `wizard_run_finished` closes the run with the screen it ended on —
 including `outcome: 'abandoned'` for a run left with Ctrl-C
 or a closed terminal.
 
-Events are queued and posted in batches to Seam,
-which forwards them to PostHog:
-a published CLI cannot hold a PostHog key,
-so the key, sampling, and rate limiting all stay server side.
-The endpoint is unauthenticated,
-because the earliest and most interesting events happen before the
-developer has connected a key at all:
+Events go to Seam's PostHog project through the
+[PostHog Node SDK][posthog-node], reported to `https://e.seam.co` —
+Seam's PostHog proxy, the same host the Console reports to.
+The SDK batches events and the wizard flushes once on the way out.
 
-```
-POST {endpoint}/seam/wizard/v1/events
-{ "events": [{ "event": "…", "distinct_id": "…", "timestamp": "…", "properties": {} }] }
-```
+The PostHog project key is not in this repository.
+`analytics-key.ts` ships an empty placeholder that `prepack.ts` fills in
+from `SEAM_WIZARD_POSTHOG_KEY` when the package is packed,
+the same way `version.ts` gets the version,
+and the publish workflow takes it from a repository secret.
+A build without one — a clone, or a pull request build — reports nothing
+at all rather than reporting somewhere unintended,
+so a run from a checkout needs `SEAM_WIZARD_POSTHOG_KEY` in the
+environment to report anywhere.
 
-Events are in PostHog's own capture shape so a batch can be forwarded
-straight through.
-`distinct_id` is an anonymous install id
-kept in the host CLI's settings — it identifies an install, not a
-developer — and `properties.workspace_id` is present once a run has
-connected.
+`distinct_id` is an anonymous install id kept in the host CLI's
+settings, namespaced as `wizard_cli_<uuid>`:
+a Console person's `distinct_id` is a UUID too, and a run is an install,
+not a person.
+Once a run connects, its events carry `workspace_id` and join that
+workspace's PostHog group.
+
+[posthog-node]: https://posthog.com/docs/libraries/node
 
 Reporting is best effort and never affects a run:
 `track` does not throw or block the render,

@@ -65,54 +65,6 @@ export function getAssistantUrl(workspaceId: string): string {
   return `${getConsoleUrl()}/dashboard/${workspaceId}/assistant`
 }
 
-// Where the wizard's analytics events go. Seam forwards them to PostHog: a
-// published CLI cannot hold a PostHog key, so the wizard posts to Seam and the
-// key, sampling and rate limiting all stay server side.
-export function getWizardEventsUrl(): string {
-  return `${getApiBaseUrl()}/seam/wizard/v1/events`
-}
-
-// One analytics event, in PostHog's capture shape so the Seam side can forward a
-// batch straight through. `distinct_id` is the wizard's anonymous install id,
-// never anything identifying the developer.
-export interface WizardAnalyticsEvent {
-  event: string
-  distinct_id: string
-  timestamp: string
-  properties: Record<string, unknown>
-}
-
-// Short: a flush runs while the developer waits for the wizard to exit.
-const EVENTS_TIMEOUT_MS = 2000
-
-// Post a batch of analytics events to Seam.
-//
-// Wire protocol (must match the Seam endpoint):
-//   POST {endpoint}/seam/wizard/v1/events
-//   body { events: [{ event, distinct_id, timestamp, properties }] }
-//   → 2xx; the response body is ignored.
-//
-// Deliberately unauthenticated: the wizard's earliest — and most interesting —
-// events happen before the developer has connected any key, so requiring a
-// credential would blind exactly the drop-off this measures. Events carry
-// `workspace_id` in their properties once a run has connected.
-//
-// Rejects on a non-2xx, a network failure, or the timeout. Analytics is best
-// effort, so the caller swallows all of it.
-export async function postWizardEvents(
-  events: readonly WizardAnalyticsEvent[],
-): Promise<void> {
-  const response = await fetch(getWizardEventsUrl(), {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ events }),
-    signal: AbortSignal.timeout(EVENTS_TIMEOUT_MS),
-  })
-  if (!response.ok) {
-    throw new Error(`Seam analytics returned ${response.status}`)
-  }
-}
-
 // Base URL for Seam-hosted inference. The embedded agent's SDK appends
 // /v1/messages; the exchange endpoint below lives at /v1/session.
 export function getInferenceBaseUrl(): string {
