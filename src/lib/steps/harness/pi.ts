@@ -10,10 +10,7 @@ import {
 } from './secret-paths.js'
 import type { Harness, HarnessRunStepArgs, StepRunResult } from './types.js'
 
-// The official Seam MCP — same server the anthropic harness and the seam-plugin
-// wire up. Bridged into pi over stdio via mcp-remote, so pi reuses the OAuth
-// token cache mcp-remote already established.
-const SEAM_MCP_URL = 'https://mcp.seam.co/mcp'
+const SEAM_MCP_URL = 'https://mcp.seam.co/mcp?agent=wizard'
 const PROVIDER = 'seam-proxy'
 
 // Cap on agent turns, matching the anthropic control's maxTurns. pi exposes no

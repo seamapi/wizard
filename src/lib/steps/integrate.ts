@@ -46,8 +46,6 @@ export interface RunIntegrationArgs {
   // long run reads as discrete progress rather than one opaque call.
   steps: IntegrationStep[]
   inference: { base_url: string; token: string }
-  // The detected framework + chosen mode, so the agent fetches the matching
-  // reference app from the Seam MCP (get_example_app) to model its work on.
   framework?: string | null
   mode?: 'full_api' | 'customer_portal'
   signal: AbortSignal
@@ -235,59 +233,25 @@ const SDK_LANGUAGE_LABELS: Record<Sdk, string> = {
   php: 'PHP',
 }
 
-function buildSystemAppend(
+export function buildSystemAppend(
   sdk: Sdk,
   workspaceName: string,
   framework?: string | null,
   mode?: 'full_api' | 'customer_portal',
 ): string {
   const language = SDK_LANGUAGE_LABELS[sdk]
-  const frameworkLabel = framework ?? "this project's framework"
-  const modeLabel = mode === 'customer_portal' ? 'Customer Portal' : 'full-API'
+  const implementationContext = {
+    framework: framework ?? 'unknown',
+    sdk,
+    mode: mode ?? 'full_api',
+  }
   return [
-    `You are the Seam integration agent, embedded in the seam-wizard CLI.`,
-    `The developer has just connected their Seam account (workspace "${workspaceName}"),`,
+    `The developer has connected their Seam account (workspace "${workspaceName}"),`,
     `and their SEAM_API_KEY is already saved in a local .env file. This is a ${language} project.`,
+    `Implementation selection context: ${JSON.stringify(implementationContext)}.`,
     ``,
-    `Before writing any code:`,
-    `- Fetch the reference integration: call mcp__seam-docs__list_example_apps, then`,
-    `  mcp__seam-docs__get_example_app to pull the example matching ${frameworkLabel} and the`,
-    `  ${modeLabel} approach. Model your integration on it — match its structure and Seam API`,
-    `  usage — but ADAPT it to this project's actual framework version, conventions, and file`,
-    `  layout. Do not copy it verbatim, and don't add files this project doesn't need.`,
-    // Context packs are per-(provider, SDK) and only exist for JavaScript/Python,
-    // so only point the agent at them for those SDKs — and only when a specific
-    // provider is in play (a Connect Webview defers the provider choice).
-    ...(sdk === 'javascript' || sdk === 'python'
-      ? [
-          `- If the integration targets a specific device or access-control provider (e.g. the developer`,
-          `  named August, Schlage, …), call mcp__seam-docs__list_context_packs, then`,
-          `  mcp__seam-docs__get_context_pack with that provider and the "${sdk}" SDK to pull its`,
-          `  provider-specific SKILL.md (connect + access-grant guidance grounded in that provider's real`,
-          `  Seam capabilities), and follow it. Skip this when no specific provider is targeted — a Connect`,
-          `  Webview lets the end user pick, so generic Access Grant guidance applies.`,
-        ]
-      : []),
-    `- Find and read the installed Seam skill. Glob for a directory named like "*seam*" under`,
-    `  .claude/skills and .agents/skills, and read its SKILL.md and any referenced files.`,
-    `- Use the seam-docs MCP tools (prefixed mcp__seam-docs__) to confirm current Seam API usage.`,
-    `  Prefer Access Grants for granting a person access — they are Seam's recommended API.`,
-    `- Read the surrounding project files first and match its language, framework, and conventions.`,
-    ``,
-    ...(mode === 'customer_portal'
-      ? []
-      : [
-          `This is a full-API integration: wire Seam into the app's EXISTING models, flows, and pages —`,
-          `extend them, do not add standalone Seam-only pages. If the app has a reservation or booking`,
-          `flow, create an Access Grant when a reservation is created (its guest as a User Identity, on`,
-          `the reservation's space, over the stay window) and revoke it on cancellation by hooking the`,
-          `existing create/update/delete handlers; map connected devices onto the app's spaces/units;`,
-          `and surface the resulting access (such as the PIN code) on the existing reservation view.`,
-          ``,
-        ]),
-    `Then implement exactly what the developer asked for — nothing more. Load SEAM_API_KEY from the`,
-    `existing .env; never hardcode or print it. Keep changes minimal and idiomatic. When finished,`,
-    `give a short summary of the files you changed and how to run the result.`,
+    `Before writing any code, call mcp__seam-docs__get_prompt with no arguments and follow`,
+    `the returned Wizard prompt for this run.`,
   ].join('\n')
 }
 

@@ -41,7 +41,7 @@ test('upsertSeamMcp preserves existing servers and replaces only seam-docs', () 
     mcpServers: {
       existing: { command: 'existing' },
       'seam-docs': {
-        url: 'https://mcp.seam.co/mcp',
+        url: 'https://mcp.seam.co/mcp?agent=wizard',
         lifecycle: 'eager',
       },
     },
