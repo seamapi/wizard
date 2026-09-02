@@ -31,6 +31,8 @@ export type IntegrateEvent =
   | { kind: 'thinking'; text: string }
   | { kind: 'text'; text: string }
   | { kind: 'tool'; name: string; detail: string }
+  | { kind: 'tool_done'; name: string; detail: string; elapsed_ms: number }
+  | { kind: 'turn_done'; index: number; elapsed_ms: number }
   | {
       kind: 'done'
       ok: boolean
@@ -156,6 +158,19 @@ export async function runIntegration(args: RunIntegrationArgs): Promise<void> {
           onThinking: (text) => onEvent({ kind: 'thinking', text }),
           onText: (text) => onEvent({ kind: 'text', text }),
           onTool: (name, detail) => onEvent({ kind: 'tool', name, detail }),
+          onToolDone: (name, detail, elapsedMs) =>
+            onEvent({
+              kind: 'tool_done',
+              name,
+              detail,
+              elapsed_ms: elapsedMs,
+            }),
+          onTurnDone: (turnIndex, elapsedMs) =>
+            onEvent({
+              kind: 'turn_done',
+              index: turnIndex,
+              elapsed_ms: elapsedMs,
+            }),
         })
         stepOk = result.ok
         stepSummary = result.summary

@@ -81,7 +81,7 @@ export const piHarness: Harness = {
   name: 'pi',
   async runStep(args: HarnessRunStepArgs): Promise<StepRunResult> {
     const { goal, cwd, model: modelId, systemAppend, inference, signal } = args
-    const { onThinking, onText, onTool } = args
+    const { onThinking, onText, onTool, onToolDone, onTurnDone } = args
 
     const {
       createAgentSession,
@@ -201,14 +201,25 @@ export const piHarness: Harness = {
     let summary = ''
     let toolCalls = 0
     let turns = 0
+    let turnStartedAt: number | null = null
+    const tools = new Map<
+      string,
+      { name: string; detail: string; startedAt: number }
+    >()
     const unsubscribe = session.subscribe((event) => {
       if (event.type === 'turn_start') {
         turns += 1
+        turnStartedAt = Date.now()
         if (turns > MAX_TURNS) stop()
         return
       }
       if (signal.aborted) return
-      if (event.type === 'message_end') {
+      if (event.type === 'turn_end') {
+        if (turnStartedAt != null) {
+          onTurnDone(turns, Date.now() - turnStartedAt)
+          turnStartedAt = null
+        }
+      } else if (event.type === 'message_end') {
         if (readRole(event.message) !== 'assistant') return
         const thinking = extractThinking(event.message).trim()
         if (thinking.length > 0) onThinking(thinking)
@@ -219,7 +230,18 @@ export const piHarness: Harness = {
         }
       } else if (event.type === 'tool_execution_start') {
         toolCalls += 1
-        onTool(event.toolName, describeArgs(event.args))
+        const detail = describeArgs(event.args)
+        tools.set(event.toolCallId, {
+          name: event.toolName,
+          detail,
+          startedAt: Date.now(),
+        })
+        onTool(event.toolName, detail)
+      } else if (event.type === 'tool_execution_end') {
+        const tool = tools.get(event.toolCallId)
+        if (tool == null) return
+        onToolDone(tool.name, tool.detail, Date.now() - tool.startedAt)
+        tools.delete(event.toolCallId)
       }
     })
 

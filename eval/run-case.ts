@@ -55,7 +55,6 @@ export async function runCase(args: {
     error = caught instanceof Error ? caught.message : String(caught)
   }
 
-  const elapsedSec = Math.round((now() - startedAt) / 1000)
   const { diff, changedFiles } = captureDiff(workDir)
 
   let score
@@ -68,6 +67,7 @@ export async function runCase(args: {
     score = await scorer({ goal, diff, mode: spec.mode }).catch(() => undefined)
   }
 
+  const elapsedSec = Math.round((now() - startedAt) / 1000)
   return {
     fixture: spec.fixture,
     mode: spec.mode,

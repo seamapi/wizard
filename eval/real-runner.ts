@@ -21,6 +21,7 @@ export function createRealRunner(
 
     let ok = false
     let costUsd: number | null = null
+    let stepStartedAt: number | null = null
     // The first step-failure reason — runIntegration catches per-step errors and
     // reports them as events rather than throwing, so capture it here to surface
     // why a case failed instead of leaving it a silent `no`.
@@ -35,7 +36,13 @@ export function createRealRunner(
       mode: spec.mode,
       signal: context.signal,
       onEvent: (event) => {
-        write(formatIntegrateEvent(event))
+        if (event.kind === 'step_start') stepStartedAt = Date.now()
+        const elapsedMs =
+          (event.kind === 'step_done' || event.kind === 'step_failed') &&
+          stepStartedAt != null
+            ? Date.now() - stepStartedAt
+            : null
+        write(formatIntegrateEvent(event, elapsedMs))
         if (event.kind === 'step_failed' && error == null) {
           error = event.reason
         }
@@ -49,20 +56,29 @@ export function createRealRunner(
   }
 }
 
-export function formatIntegrateEvent(event: IntegrateEvent): string {
+export function formatIntegrateEvent(
+  event: IntegrateEvent,
+  elapsedMs: number | null = null,
+): string {
   if (event.kind === 'step_start') {
     return `  step ${event.index + 1}/${event.total}: ${event.label}`
   }
   if (event.kind === 'step_done') {
-    return `  step ${event.index + 1}/${event.total}: done${formatCost(event.cost_usd)}`
+    return `  step ${event.index + 1}/${event.total}: done${formatDuration(elapsedMs)}${formatCost(event.cost_usd)}`
   }
   if (event.kind === 'step_failed') {
-    return `  step ${event.index + 1}/${event.total}: failed — ${event.reason}`
+    return `  step ${event.index + 1}/${event.total}: failed${formatDuration(elapsedMs)} — ${event.reason}`
   }
   if (event.kind === 'thinking') return formatBlock('thinking', event.text)
   if (event.kind === 'text') return formatBlock('agent', event.text)
   if (event.kind === 'tool') {
     return `    tool: ${event.name}${event.detail.length > 0 ? ` ${event.detail}` : ''}`
+  }
+  if (event.kind === 'tool_done') {
+    return `    tool: ${event.name}${event.detail.length > 0 ? ` ${event.detail}` : ''} · done${formatDuration(event.elapsed_ms)}`
+  }
+  if (event.kind === 'turn_done') {
+    return `    turn ${event.index}: done${formatDuration(event.elapsed_ms)}`
   }
   return `  agent run ${event.ok ? 'complete' : 'failed'}${formatCost(event.cost_usd)}`
 }
@@ -73,4 +89,8 @@ function formatBlock(label: string, text: string): string {
 
 function formatCost(costUsd: number | null): string {
   return costUsd == null ? '' : ` · $${costUsd.toFixed(2)}`
+}
+
+export function formatDuration(elapsedMs: number | null): string {
+  return elapsedMs == null ? '' : ` · ${(elapsedMs / 1000).toFixed(1)}s`
 }

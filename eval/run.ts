@@ -14,7 +14,7 @@ import parseArgs from 'minimist'
 import { exchangeWizardInferenceToken, getInferenceBaseUrl } from 'lib/api.js'
 import type { BuildMode } from 'lib/steps/build-plan.js'
 
-import { createRealRunner } from './real-runner.js'
+import { createRealRunner, formatDuration } from './real-runner.js'
 import { formatReport } from './report.js'
 import { runCase } from './run-case.js'
 import { createLlmJudge } from './score.js'
@@ -91,7 +91,9 @@ async function main(): Promise<void> {
   }
 
   write(`Starting ${harness} eval…`)
+  const tokenStartedAt = Date.now()
   const session = await exchangeWizardInferenceToken(apiKey)
+  write(`Inference token ready${formatDuration(Date.now() - tokenStartedAt)}`)
   const runner = createRealRunner(session.token, write)
   const scorer = createLlmJudge({
     base_url: getInferenceBaseUrl(),
@@ -113,7 +115,14 @@ async function main(): Promise<void> {
         runner,
         scorer: async (input) => {
           write('  scoring diff…')
-          return await scorer(input)
+          const scoringStartedAt = Date.now()
+          try {
+            return await scorer(input)
+          } finally {
+            write(
+              `  scoring finished${formatDuration(Date.now() - scoringStartedAt)}`,
+            )
+          }
         },
         now: () => Date.now(),
       })

@@ -78,11 +78,20 @@ export const anthropicHarness: Harness = {
       onThinking,
       onText,
       onTool,
+      onToolDone,
+      onTurnDone,
     } = args
 
     let ok = false
     let summary = ''
     let costUsd: number | null = null
+    let turnIndex = 1
+    let turnStartedAt = Date.now()
+    let turnHasOutput = false
+    const tools = new Map<
+      string,
+      { name: string; detail: string; startedAt: number }
+    >()
 
     for await (const message of query({
       prompt: goal,
@@ -130,6 +139,7 @@ export const anthropicHarness: Harness = {
       if (signal.aborted) break
 
       if (message.type === 'assistant') {
+        turnHasOutput = true
         for (const block of message.message.content) {
           if (block.type === 'thinking') {
             const thinking = block.thinking.trim()
@@ -138,10 +148,39 @@ export const anthropicHarness: Harness = {
             const text = block.text.trim()
             if (text.length > 0) onText(text)
           } else if (block.type === 'tool_use') {
-            onTool(block.name, describeToolInput(block.input))
+            const detail = describeToolInput(block.input)
+            tools.set(block.id, {
+              name: block.name,
+              detail,
+              startedAt: Date.now(),
+            })
+            onTool(block.name, detail)
           }
         }
+      } else if (
+        message.type === 'user' &&
+        Array.isArray(message.message.content)
+      ) {
+        let completedTool = false
+        for (const block of message.message.content) {
+          if (block.type !== 'tool_result') continue
+          const tool = tools.get(block.tool_use_id)
+          if (tool == null) continue
+          onToolDone(tool.name, tool.detail, Date.now() - tool.startedAt)
+          tools.delete(block.tool_use_id)
+          completedTool = true
+        }
+        if (completedTool && tools.size === 0 && turnHasOutput) {
+          onTurnDone(turnIndex, Date.now() - turnStartedAt)
+          turnIndex += 1
+          turnStartedAt = Date.now()
+          turnHasOutput = false
+        }
       } else if (message.type === 'result') {
+        if (turnHasOutput) {
+          onTurnDone(turnIndex, Date.now() - turnStartedAt)
+          turnHasOutput = false
+        }
         // `result` only exists on the success subtype; narrow on `message`
         // itself so the type checker allows the access.
         if (message.subtype === 'success') {

@@ -388,6 +388,8 @@ export function App({
         ...previous.slice(-5),
         formatTool(event.name, event.detail),
       ])
+    } else if (event.kind === 'tool_done' || event.kind === 'turn_done') {
+      setIntegrateIdleSec(0)
     } else {
       setCurrentStep(null)
       setAgentLines([])
