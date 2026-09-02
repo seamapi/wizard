@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** After the wizard installs the Seam plugin skills, register the *authenticated* Seam MCP (`https://mcp.seam.co/mcp/authenticated`) with the developer's coding agent — via `claude mcp add` when Claude Code is detected, by printing the equivalent `.mcp.json` snippet otherwise — and refuse to write `SEAM_API_KEY` through a symlinked `.env`.
+**Goal:** After the wizard installs the Seam plugin skills, register the _authenticated_ Seam MCP (`https://mcp.seam.co/mcp/authenticated`) with the developer's coding agent — via `claude mcp add` when Claude Code is detected, by printing the equivalent `.mcp.json` snippet otherwise — and refuse to write `SEAM_API_KEY` through a symlinked `.env`.
 
 **Architecture:** One new module, `src/lib/steps/register-seam-mcp.ts`, holds every constant and string this feature needs (the `claude mcp add` argv, the `.mcp.json` snippet, the three per-tool hints, the printed-notice composer) plus a thin runner that spawns the argv through the existing `runInstall` seam and maps failure to a printed fallback. `src/lib/app.tsx`'s `install-plugin` phase calls the runner, reports the outcome on `wizard_install_finished`, and renders the composed notices through the existing `addMessage`. `src/lib/env-file.ts` gains an `lstat` guard and a fourth `EnvWriteResult` variant that the three save paths propagate so the Ink app can tell the developer to add the key by hand.
 
@@ -27,18 +27,18 @@
 
 ## File Structure
 
-| File | Responsibility | Change |
-|---|---|---|
-| `src/lib/steps/register-seam-mcp.ts` | Every string and decision for authenticated-MCP registration: the `claude mcp add` argv, the `.mcp.json` snippet, the Cursor/Codex/OpenCode hints, the notice composer, and the runner that spawns the argv | **Create** |
-| `src/lib/steps/register-seam-mcp.test.ts` | Unit tests for that module: exact argv, snippet JSON, hints, runner outcomes (injected runner), composed notices | **Create** |
-| `src/lib/app.tsx` | The Ink app. `install-plugin` phase (lines 725-780) runs the skills install, then registration; reports `wizard_install_finished`; renders notices | Modify the `install-plugin` effect, the import block, and the four env-write call sites |
-| `src/lib/screens/done.tsx` | Final screen | Add the exported `AGENT_CONSENT_NOTICE` copy line below the card |
-| `src/lib/screens/done.test.tsx` | Done-screen render tests | Add one test for the consent copy |
-| `src/lib/env-file.ts` | dotenv read/write helpers | `lstat` guard in `upsertEnvVar`, new `'symlink-refused'` variant, exported refusal message |
-| `src/lib/env-file.test.ts` | Unit tests for those helpers | Add symlink tests |
-| `src/lib/steps/authenticate.ts` | Pure auth logic | `saveVerifiedKey` returns the env result; `AuthResult` carries it |
-| `src/lib/steps/authenticate.test.ts` | Unit tests for auth | Add one propagation test |
-| `src/lib/steps/connect-web.ts` | Browser → CLI key handoff | `WebConnectResult` carries the env result |
+| File                                      | Responsibility                                                                                                                                                                                              | Change                                                                                     |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `src/lib/steps/register-seam-mcp.ts`      | Every string and decision for authenticated-MCP registration: the `claude mcp add` argv, the `.mcp.json` snippet, the Cursor/Codex/OpenCode hints, the notice composer, and the runner that spawns the argv | **Create**                                                                                 |
+| `src/lib/steps/register-seam-mcp.test.ts` | Unit tests for that module: exact argv, snippet JSON, hints, runner outcomes (injected runner), composed notices                                                                                            | **Create**                                                                                 |
+| `src/lib/app.tsx`                         | The Ink app. `install-plugin` phase (lines 725-780) runs the skills install, then registration; reports `wizard_install_finished`; renders notices                                                          | Modify the `install-plugin` effect, the import block, and the four env-write call sites    |
+| `src/lib/screens/done.tsx`                | Final screen                                                                                                                                                                                                | Add the exported `AGENT_CONSENT_NOTICE` copy line below the card                           |
+| `src/lib/screens/done.test.tsx`           | Done-screen render tests                                                                                                                                                                                    | Add one test for the consent copy                                                          |
+| `src/lib/env-file.ts`                     | dotenv read/write helpers                                                                                                                                                                                   | `lstat` guard in `upsertEnvVar`, new `'symlink-refused'` variant, exported refusal message |
+| `src/lib/env-file.test.ts`                | Unit tests for those helpers                                                                                                                                                                                | Add symlink tests                                                                          |
+| `src/lib/steps/authenticate.ts`           | Pure auth logic                                                                                                                                                                                             | `saveVerifiedKey` returns the env result; `AuthResult` carries it                          |
+| `src/lib/steps/authenticate.test.ts`      | Unit tests for auth                                                                                                                                                                                         | Add one propagation test                                                                   |
+| `src/lib/steps/connect-web.ts`            | Browser → CLI key handoff                                                                                                                                                                                   | `WebConnectResult` carries the env result                                                  |
 
 Task order: 1 (pure strings) → 2 (runner) → 3 (app wiring + analytics + done copy) → 4 (`.env` hardening, independent of 1-3) → 5 (verify + PR).
 
@@ -47,10 +47,12 @@ Task order: 1 (pure strings) → 2 (runner) → 3 (app wiring + analytics + done
 ### Task 1: The registration constants, snippet, and hints
 
 **Files:**
+
 - Create: `src/lib/steps/register-seam-mcp.ts`
 - Create: `src/lib/steps/register-seam-mcp.test.ts`
 
 **Interfaces:**
+
 - Consumes: `type PluginTarget = 'claude-code' | 'universal'` from `./install-seam-plugin.js` (already exported at `src/lib/steps/install-seam-plugin.ts:4`).
 - Produces (all used by Tasks 2 and 3):
   - `const AUTHENTICATED_SEAM_MCP_URL: string`
@@ -233,10 +235,12 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ### Task 2: The registration runner
 
 **Files:**
+
 - Modify: `src/lib/steps/register-seam-mcp.ts` (append the runner below the constants from Task 1)
 - Modify: `src/lib/steps/register-seam-mcp.test.ts` (append the runner tests)
 
 **Interfaces:**
+
 - Consumes: `runInstall(command: string[], cwd: string, onLine: (line: string) => void): Promise<void>` from `lib/run-install.js`. It spawns with `stdio: ['ignore', 'pipe', 'pipe']`, `shell: false`, no `env` override (so the child inherits the wizard's environment and nothing key-bearing is added); it rejects with the spawn `error` event — an `Error` whose `code` is `'ENOENT'` when the binary is missing — and with `new Error("claude exited with code <n>")` on a non-zero close. Also `CLAUDE_MCP_ADD_COMMAND` from Task 1.
 - Produces:
   - `type McpRegistration = 'claude_cli' | 'printed' | 'failed'`
@@ -411,6 +415,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ### Task 3: Wire registration into the install-plugin phase, analytics, and the done screen
 
 **Files:**
+
 - Modify: `src/lib/steps/register-seam-mcp.ts` (add the notice composer)
 - Modify: `src/lib/steps/register-seam-mcp.test.ts` (composer tests)
 - Modify: `src/lib/app.tsx` — the import block (lines 74-79) and the `install-plugin` effect (lines 725-780)
@@ -418,6 +423,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 - Modify: `src/lib/screens/done.test.tsx`
 
 **Interfaces:**
+
 - Consumes from Tasks 1-2: `CLAUDE_MCP_ADD_COMMAND`, `mcpJsonSnippet()`, `UNIVERSAL_MCP_HINTS`, `type McpRegistration`, `registerSeamMcpWithClaudeCli`. From existing code: `detectPluginTarget(root): PluginTarget`, `SEAM_PLUGIN_NPX_COMMAND`, `CLAUDE_CODE_COMMANDS` (`src/lib/steps/install-seam-plugin.ts`); `addMessage(message: { tone: 'ok' | 'info' | 'warn' | 'plain'; text: string }): void` (`app.tsx:205`); `trackInstallFinished(target: 'sdk' | 'plugin', ok: boolean, properties: Record<string, unknown>): void` (`app.tsx:288`) — its third parameter is already `Record<string, unknown>`, so adding `mcp_registration` needs no signature change; typing comes from declaring the value as `McpRegistration` at the call site.
 - Produces:
   - `interface McpNotice { tone: 'info' | 'warn' | 'plain'; text: string }`
@@ -544,7 +550,10 @@ export function buildMcpRegistrationNotices({
 
   const hintLines: McpNotice[] =
     target === 'universal'
-      ? UNIVERSAL_MCP_HINTS.map((hint) => ({ tone: 'plain', text: `  ${hint}` }))
+      ? UNIVERSAL_MCP_HINTS.map((hint) => ({
+          tone: 'plain',
+          text: `  ${hint}`,
+        }))
       : []
 
   return [heading, ...snippetLines, ...hintLines]
@@ -572,89 +581,89 @@ import {
 Replace the whole body of the `install-plugin` effect (`src/lib/app.tsx:725-780`, the block whose comment begins `// install the official Seam plugin skills, then finish.`) with:
 
 ```tsx
-  // install the official Seam plugin skills, then register the authenticated
-  // Seam MCP so the developer's own agent gets a delegated grant instead of
-  // reading the app's key out of .env. For Claude Code we additionally point at
-  // the native /plugin path, which wires up the anonymous docs MCP.
-  useEffect(() => {
-    if (phase.t !== 'install-plugin') return
-    const target = detectPluginTarget(root)
+// install the official Seam plugin skills, then register the authenticated
+// Seam MCP so the developer's own agent gets a delegated grant instead of
+// reading the app's key out of .env. For Claude Code we additionally point at
+// the native /plugin path, which wires up the anonymous docs MCP.
+useEffect(() => {
+  if (phase.t !== 'install-plugin') return
+  const target = detectPluginTarget(root)
 
-    let cancelled = false
-    const streamLine = (line: string): void => {
-      if (!cancelled) {
-        setInstallLines((previous) => [...previous.slice(-3), line])
-      }
+  let cancelled = false
+  const streamLine = (line: string): void => {
+    if (!cancelled) {
+      setInstallLines((previous) => [...previous.slice(-3), line])
     }
-    const run = async (): Promise<void> => {
-      installStartedAtRef.current = Date.now()
-      let skillsInstalled = true
+  }
+  const run = async (): Promise<void> => {
+    installStartedAtRef.current = Date.now()
+    let skillsInstalled = true
+    try {
+      await runInstall(SEAM_PLUGIN_NPX_COMMAND, root, streamLine)
+    } catch {
+      skillsInstalled = false
+    }
+    if (cancelled) return
+
+    addMessage(
+      skillsInstalled
+        ? { tone: 'ok', text: 'Installed the Seam plugin skills' }
+        : {
+            tone: 'warn',
+            text: `Couldn't install the plugin — run it yourself: ${SEAM_PLUGIN_NPX_COMMAND.join(' ')}`,
+          },
+    )
+
+    let registration: McpRegistration = 'printed'
+    if (target === 'claude-code') {
       try {
-        await runInstall(SEAM_PLUGIN_NPX_COMMAND, root, streamLine)
-      } catch {
-        skillsInstalled = false
-      }
-      if (cancelled) return
-
-      addMessage(
-        skillsInstalled
-          ? { tone: 'ok', text: 'Installed the Seam plugin skills' }
-          : {
-              tone: 'warn',
-              text: `Couldn't install the plugin — run it yourself: ${SEAM_PLUGIN_NPX_COMMAND.join(' ')}`,
-            },
-      )
-
-      let registration: McpRegistration = 'printed'
-      if (target === 'claude-code') {
-        try {
-          registration = await registerSeamMcpWithClaudeCli({
-            root,
-            onLine: streamLine,
-          })
-        } catch {
-          registration = 'failed'
-        }
-      }
-      if (cancelled) return
-
-      trackInstallFinished('plugin', skillsInstalled, {
-        plugin_target: target,
-        mcp_registration: registration,
-      })
-      for (const notice of buildMcpRegistrationNotices({
-        target,
-        registration,
-      })) {
-        addMessage(notice)
-      }
-
-      setInstallLines([])
-      if (target === 'claude-code') {
-        addMessage({
-          tone: 'info',
-          text: 'Claude Code: for the native plugin + seam-docs MCP, you can also run:',
+        registration = await registerSeamMcpWithClaudeCli({
+          root,
+          onLine: streamLine,
         })
-        for (const command of CLAUDE_CODE_COMMANDS) {
-          addMessage({ tone: 'plain', text: `  ${command}` })
-        }
+      } catch {
+        registration = 'failed'
       }
-      setPhase({ t: 'offer-integrate' })
     }
-    run().catch((error: unknown) => {
-      if (cancelled) return
-      setPhase({
-        t: 'error',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'The wizard hit an unexpected error.',
-      })
+    if (cancelled) return
+
+    trackInstallFinished('plugin', skillsInstalled, {
+      plugin_target: target,
+      mcp_registration: registration,
     })
-    return () => {
-      cancelled = true
+    for (const notice of buildMcpRegistrationNotices({
+      target,
+      registration,
+    })) {
+      addMessage(notice)
     }
-  }, [phase.t])
+
+    setInstallLines([])
+    if (target === 'claude-code') {
+      addMessage({
+        tone: 'info',
+        text: 'Claude Code: for the native plugin + seam-docs MCP, you can also run:',
+      })
+      for (const command of CLAUDE_CODE_COMMANDS) {
+        addMessage({ tone: 'plain', text: `  ${command}` })
+      }
+    }
+    setPhase({ t: 'offer-integrate' })
+  }
+  run().catch((error: unknown) => {
+    if (cancelled) return
+    setPhase({
+      t: 'error',
+      message:
+        error instanceof Error
+          ? error.message
+          : 'The wizard hit an unexpected error.',
+    })
+  })
+  return () => {
+    cancelled = true
+  }
+}, [phase.t])
 ```
 
 Three things changed beyond the new registration: the streamed-line closure is hoisted so both spawns share it, the skills-install messages moved out of the `try`/`catch` so registration can run before the analytics event, and `trackInstallFinished` fires once with both properties.
@@ -673,15 +682,15 @@ export const AGENT_CONSENT_NOTICE =
 Render it in the outer column, between the assistant-link block and the "Press any key to exit" margin box (it sits outside the bordered card, which is too narrow for a sentence this long):
 
 ```tsx
-      <Box
-        flexDirection='column'
-        alignItems='center'
-        width={columns}
-        marginTop={1}
-        paddingX={2}
-      >
-        <Text color='gray'>{AGENT_CONSENT_NOTICE}</Text>
-      </Box>
+<Box
+  flexDirection='column'
+  alignItems='center'
+  width={columns}
+  marginTop={1}
+  paddingX={2}
+>
+  <Text color='gray'>{AGENT_CONSENT_NOTICE}</Text>
+</Box>
 ```
 
 - [ ] **Step 7: Write the done-screen test**
@@ -749,6 +758,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ### Task 4: Refuse to write `SEAM_API_KEY` through a symlink
 
 **Files:**
+
 - Modify: `src/lib/env-file.ts:1` (imports), `:4` (`EnvWriteResult`), `:103-126` (`upsertEnvVar`)
 - Modify: `src/lib/env-file.test.ts`
 - Modify: `src/lib/steps/authenticate.ts:5-19` (`AuthResult`), `:62-64` (`saveVerifiedKey`)
@@ -757,6 +767,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 - Modify: `src/lib/app.tsx` — `useCliKey` (~line 429), `useProjectKey` (~line 445), the `verify-paste` effect (~line 636), the `browser` effect (~line 584)
 
 **Interfaces:**
+
 - Consumes: `existsSync`, `readFileSync`, `writeFileSync` from `node:fs` (already imported in `env-file.ts`); `type ProjectEnvResult { env: EnvWriteResult; example: EnvWriteResult | 'unchanged'; gitignore: 'added' | 'unchanged' }` and `saveProjectApiKey(root: string, apiKey: string): ProjectEnvResult` (already exported).
 - Produces:
   - `type EnvWriteResult = 'created' | 'updated' | 'added' | 'symlink-refused'` (fourth variant added)
@@ -850,11 +861,7 @@ Change the imports on line 1 and the type on line 4:
 import { existsSync, lstatSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-export type EnvWriteResult =
-  | 'created'
-  | 'updated'
-  | 'added'
-  | 'symlink-refused'
+export type EnvWriteResult = 'created' | 'updated' | 'added' | 'symlink-refused'
 
 export const ENV_SYMLINK_REFUSAL_MESSAGE =
   '.env is a symlink — the wizard did not write through it. Add SEAM_API_KEY to the real file yourself.'
@@ -931,12 +938,12 @@ export interface WebConnectResult {
 ```
 
 ```ts
-  const workspace = await getWorkspaceForApiKey(payload.api_key)
-  return {
-    workspace,
-    api_key: payload.api_key,
-    env: saveProjectApiKey(root, payload.api_key),
-  }
+const workspace = await getWorkspaceForApiKey(payload.api_key)
+return {
+  workspace,
+  api_key: payload.api_key,
+  env: saveProjectApiKey(root, payload.api_key),
+}
 ```
 
 - [ ] **Step 5: Surface the refusal in `app.tsx`**
@@ -955,11 +962,11 @@ import {
 Add this helper immediately below `addMessage` (`src/lib/app.tsx:205-206`):
 
 ```tsx
-  const reportEnvWrite = (result: ProjectEnvResult): void => {
-    if (result.env === 'symlink-refused') {
-      addMessage({ tone: 'warn', text: ENV_SYMLINK_REFUSAL_MESSAGE })
-    }
+const reportEnvWrite = (result: ProjectEnvResult): void => {
+  if (result.env === 'symlink-refused') {
+    addMessage({ tone: 'warn', text: ENV_SYMLINK_REFUSAL_MESSAGE })
   }
+}
 ```
 
 Then call it at the four save sites. `useCliKey` (~line 429):
@@ -978,31 +985,31 @@ Then call it at the four save sites. `useCliKey` (~line 429):
 `useProjectKey` (~line 445) — only the `environment` branch writes a key:
 
 ```tsx
-      if (found.source === 'environment') {
-        reportEnvWrite(saveVerifiedKey(root, found.api_key))
-      } else {
-        ensureProjectEnvConventions(root)
-      }
+if (found.source === 'environment') {
+  reportEnvWrite(saveVerifiedKey(root, found.api_key))
+} else {
+  ensureProjectEnvConventions(root)
+}
 ```
 
 The `verify-paste` effect (~line 636):
 
 ```tsx
-        const result = await verifyAndSaveKey(root, apiKey)
-        if (cancelled) return
-        reportEnvWrite(result.env)
-        addMessage({ tone: 'ok', text: `Workspace: ${result.workspace.name}` })
+const result = await verifyAndSaveKey(root, apiKey)
+if (cancelled) return
+reportEnvWrite(result.env)
+addMessage({ tone: 'ok', text: `Workspace: ${result.workspace.name}` })
 ```
 
 The `browser` effect (~line 595), right after the `if (cancelled) return`:
 
 ```tsx
-        if (cancelled) return
-        reportEnvWrite(result.env)
-        addMessage({
-          tone: 'ok',
-          text: `Connected · workspace ${result.workspace.name}`,
-        })
+if (cancelled) return
+reportEnvWrite(result.env)
+addMessage({
+  tone: 'ok',
+  text: `Connected · workspace ${result.workspace.name}`,
+})
 ```
 
 - [ ] **Step 6: Run the affected tests**
@@ -1074,7 +1081,7 @@ Expected: no output. The harnesses keep the anonymous `https://mcp.seam.co/mcp`.
 
 Run: `git diff main...HEAD -U0 -- src | grep -E '^\+\s*(//|/\*|\*)'`
 
-For each: would it read identically at every similar site (generality)? Is a test already the explanation (test coverage)? Is it aimed at a reviewer (audience)? Delete any that fail and amend. The ones written here are meant to survive: each records a *why* the code cannot state — why the authenticated URL differs from the plugin's, why a spawn failure is a fallback rather than an error, why `lstat` has to precede `existsSync`.
+For each: would it read identically at every similar site (generality)? Is a test already the explanation (test coverage)? Is it aimed at a reviewer (audience)? Delete any that fail and amend. The ones written here are meant to survive: each records a _why_ the code cannot state — why the authenticated URL differs from the plugin's, why a spawn failure is a fallback rather than an error, why `lstat` has to precede `existsSync`.
 
 - [ ] **Step 5: Push and open the PR**
 
