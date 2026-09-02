@@ -303,6 +303,25 @@ test('saveProjectApiKey reports the refusal and still ignores .env', () => {
   expect(readFileSync(targetPath, 'utf8')).not.toContain('seam_new_key')
 })
 
+// .env and .env.example are written independently: a symlinked .env.example
+// must not stop the key from landing in .env, and the result must say so per
+// file rather than merging the two into one verdict.
+test('saveProjectApiKey writes .env even when only .env.example is a symlink', () => {
+  mkdirSync(join(dir, '.git'))
+  const exampleTargetPath = join(dir, 'shared-example.env')
+  writeFileSync(exampleTargetPath, 'OTHER=1\n')
+  symlinkSync(exampleTargetPath, join(dir, '.env.example'))
+
+  const result = saveProjectApiKey(dir, 'seam_new_key')
+
+  expect(result.env).toBe('created')
+  expect(result.example).toBe('symlink-refused')
+  expect(readFileSync(join(dir, '.env'), 'utf8')).toBe(
+    'SEAM_API_KEY=seam_new_key\n',
+  )
+  expect(readFileSync(exampleTargetPath, 'utf8')).not.toContain('seam_new_key')
+})
+
 test('ENV_SYMLINK_REFUSAL_MESSAGE tells the developer what to do, without a key', () => {
   expect(ENV_SYMLINK_REFUSAL_MESSAGE).toContain('SEAM_API_KEY')
   expect(ENV_SYMLINK_REFUSAL_MESSAGE).toContain('symlink')
