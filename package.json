@@ -1,6 +1,6 @@
 {
   "name": "@seamapi/wizard",
-  "version": "0.44.2",
+  "version": "0.45.0",
   "description": "The AI powered Seam setup wizard.",
   "type": "module",
   "main": "index.js",
@@ -90,7 +90,8 @@
     "ink-text-input": "^6.0.0",
     "minimist": "^1.2.8",
     "open": "^11.0.0",
-    "pi-mcp-adapter": "^2.27.0"
+    "pi-mcp-adapter": "^2.27.0",
+    "posthog-node": "^5.51.6"
   },
   "devDependencies": {
     "@seamapi/cli": "^0.34.0",
