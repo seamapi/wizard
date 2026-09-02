@@ -370,6 +370,12 @@ export function App({
         tone: 'warn',
         text: `Step ${event.index + 1}/${event.total} stopped — ${event.reason}`,
       })
+    } else if (event.kind === 'thinking') {
+      setIntegrateIdleSec(0)
+      setAgentLines((previous) => [
+        ...previous.slice(-5),
+        `Thinking: ${truncate(event.text, 90)}`,
+      ])
     } else if (event.kind === 'text') {
       setIntegrateIdleSec(0)
       setAgentLines((previous) => [

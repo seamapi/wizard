@@ -1,4 +1,12 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
+import {
+  appendFileSync,
+  existsSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import parseArgs from 'minimist'
@@ -15,6 +23,7 @@ import type { CaseResult, EvalCase, FixtureConfig } from './types.js'
 // Where the fixture apps live (top-level, so tsc doesn't compile them).
 const FIXTURES_DIR = join(process.cwd(), 'eval', 'fixtures')
 const MODES: BuildMode[] = ['full_api', 'customer_portal']
+let logFile: string | null = null
 
 // Flatten a repeated/comma-separated CLI flag into a list of values.
 function toList(value: unknown): string[] {
@@ -31,6 +40,15 @@ function toList(value: unknown): string[] {
 // model calls, so it costs money and takes minutes. The harness is selected by
 // SEAM_WIZARD_HARNESS (default anthropic).
 async function main(): Promise<void> {
+  // `--fixture a,b` / `--mode full_api` narrow the run to specific cases (each
+  // real case costs money + minutes), else run every fixture × mode.
+  const args = parseArgs(process.argv.slice(2), {
+    string: ['fixture', 'mode'],
+  })
+  logFile = join(tmpdir(), `seam-wizard-eval-${randomUUID()}.log`)
+  writeFileSync(logFile, '', { flag: 'wx', mode: 0o600 })
+  write(`Logging to ${logFile}`)
+
   const apiKey = process.env['SEAM_API_KEY']
   if (apiKey == null || apiKey.length === 0) {
     write('Set SEAM_API_KEY (a dev key) to run the eval.')
@@ -40,9 +58,6 @@ async function main(): Promise<void> {
 
   const harness = process.env['SEAM_WIZARD_HARNESS'] ?? 'anthropic'
 
-  // `--fixture a,b` / `--mode full_api` narrow the run to specific cases (each
-  // real case costs money + minutes), else run every fixture × mode.
-  const args = parseArgs(process.argv.slice(2), { string: ['fixture', 'mode'] })
   const fixtureFilter = toList(args['fixture'])
   const modeFilter = toList(args['mode'])
 
@@ -75,8 +90,9 @@ async function main(): Promise<void> {
     return
   }
 
+  write(`Starting ${harness} eval…`)
   const session = await exchangeWizardInferenceToken(apiKey)
-  const runner = createRealRunner(session.token)
+  const runner = createRealRunner(session.token, write)
   const scorer = createLlmJudge({
     base_url: getInferenceBaseUrl(),
     token: session.token,
@@ -95,10 +111,16 @@ async function main(): Promise<void> {
         config,
         signal: controller.signal,
         runner,
-        scorer,
+        scorer: async (input) => {
+          write('  scoring diff…')
+          return await scorer(input)
+        },
         now: () => Date.now(),
       })
       results.push(result)
+      write(
+        `  case ${result.ok ? 'complete' : 'failed'} · ${result.elapsedSec}s`,
+      )
     }
   }
 
@@ -127,11 +149,19 @@ function readFixtureConfig(fixture: string): FixtureConfig {
 }
 
 function write(message: string): void {
-  process.stdout.write(`${message}\n`)
+  const line = `${message}\n`
+  process.stdout.write(line)
+  if (logFile != null) appendFileSync(logFile, line)
 }
 
 await main().catch((error: unknown) => {
   const { message } = error instanceof Error ? error : new Error(String(error))
-  process.stderr.write(`Eval failed: ${message}\n`)
+  const line = `Eval failed: ${message}\n`
+  process.stderr.write(line)
+  if (logFile != null) {
+    try {
+      appendFileSync(logFile, line)
+    } catch {}
+  }
   process.exitCode = 1
 })

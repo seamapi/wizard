@@ -75,6 +75,7 @@ export const anthropicHarness: Harness = {
       agentEnv,
       signal,
       abortController,
+      onThinking,
       onText,
       onTool,
     } = args
@@ -130,7 +131,10 @@ export const anthropicHarness: Harness = {
 
       if (message.type === 'assistant') {
         for (const block of message.message.content) {
-          if (block.type === 'text') {
+          if (block.type === 'thinking') {
+            const thinking = block.thinking.trim()
+            if (thinking.length > 0) onThinking(thinking)
+          } else if (block.type === 'text') {
             const text = block.text.trim()
             if (text.length > 0) onText(text)
           } else if (block.type === 'tool_use') {

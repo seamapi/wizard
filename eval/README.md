@@ -31,8 +31,9 @@ SEAM_API_KEY=seam_… SEAM_WIZARD_HARNESS=pi npm run eval
 ```
 
 `SEAM_API_KEY` is a dev key; it is exchanged for a short-lived inference token
-(the Anthropic key never leaves the Seam proxy). Nothing here runs in normal CI —
-it is a manual/opt-in harness.
+(the Anthropic key never leaves the Seam proxy). The eval prints its temporary
+log-file path before starting and mirrors all progress there. Nothing here runs
+in normal CI — it is a manual/opt-in harness.
 
 ## Fixtures
 

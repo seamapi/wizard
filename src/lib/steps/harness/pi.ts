@@ -81,7 +81,7 @@ export const piHarness: Harness = {
   name: 'pi',
   async runStep(args: HarnessRunStepArgs): Promise<StepRunResult> {
     const { goal, cwd, model: modelId, systemAppend, inference, signal } = args
-    const { onText, onTool } = args
+    const { onThinking, onText, onTool } = args
 
     const {
       createAgentSession,
@@ -210,6 +210,8 @@ export const piHarness: Harness = {
       if (signal.aborted) return
       if (event.type === 'message_end') {
         if (readRole(event.message) !== 'assistant') return
+        const thinking = extractThinking(event.message).trim()
+        if (thinking.length > 0) onThinking(thinking)
         const text = extractText(event.message).trim()
         if (text.length > 0) {
           summary = text
@@ -331,6 +333,19 @@ function extractText(message: unknown): string {
         typeof (block as { text?: unknown }).text === 'string',
     )
     .map((block) => block.text)
+    .join('')
+}
+
+function extractThinking(message: unknown): string {
+  const content = (message as { content?: unknown }).content
+  if (!Array.isArray(content)) return ''
+  return content
+    .filter(
+      (block): block is { type: string; thinking: string } =>
+        (block as { type?: unknown }).type === 'thinking' &&
+        typeof (block as { thinking?: unknown }).thinking === 'string',
+    )
+    .map((block) => block.thinking)
     .join('')
 }
 

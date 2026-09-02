@@ -1,6 +1,6 @@
 import { getInferenceBaseUrl } from 'lib/api.js'
 import { buildIntegrationSteps } from 'lib/steps/build-plan.js'
-import { runIntegration } from 'lib/steps/integrate.js'
+import { type IntegrateEvent, runIntegration } from 'lib/steps/integrate.js'
 
 import type { CaseRunner } from './run-case.js'
 
@@ -8,7 +8,10 @@ import type { CaseRunner } from './run-case.js'
 // runIntegration the wizard uses. The harness is selected out-of-band by
 // SEAM_WIZARD_HARNESS (the switchboard reads it), so a case just sets that env
 // before running. Cost/ok come from the terminal `done` event.
-export function createRealRunner(token: string): CaseRunner {
+export function createRealRunner(
+  token: string,
+  write: (message: string) => void,
+): CaseRunner {
   return async (workDir, spec, context) => {
     const steps = buildIntegrationSteps({
       mode: spec.mode,
@@ -32,6 +35,7 @@ export function createRealRunner(token: string): CaseRunner {
       mode: spec.mode,
       signal: context.signal,
       onEvent: (event) => {
+        write(formatIntegrateEvent(event))
         if (event.kind === 'step_failed' && error == null) {
           error = event.reason
         }
@@ -43,4 +47,30 @@ export function createRealRunner(token: string): CaseRunner {
     })
     return { ok, costUsd, ...(error != null ? { error } : {}) }
   }
+}
+
+export function formatIntegrateEvent(event: IntegrateEvent): string {
+  if (event.kind === 'step_start') {
+    return `  step ${event.index + 1}/${event.total}: ${event.label}`
+  }
+  if (event.kind === 'step_done') {
+    return `  step ${event.index + 1}/${event.total}: done${formatCost(event.cost_usd)}`
+  }
+  if (event.kind === 'step_failed') {
+    return `  step ${event.index + 1}/${event.total}: failed — ${event.reason}`
+  }
+  if (event.kind === 'thinking') return formatBlock('thinking', event.text)
+  if (event.kind === 'text') return formatBlock('agent', event.text)
+  if (event.kind === 'tool') {
+    return `    tool: ${event.name}${event.detail.length > 0 ? ` ${event.detail}` : ''}`
+  }
+  return `  agent run ${event.ok ? 'complete' : 'failed'}${formatCost(event.cost_usd)}`
+}
+
+function formatBlock(label: string, text: string): string {
+  return `    ${label}: ${text.replaceAll('\n', '\n      ')}`
+}
+
+function formatCost(costUsd: number | null): string {
+  return costUsd == null ? '' : ` · $${costUsd.toFixed(2)}`
 }

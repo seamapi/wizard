@@ -29,7 +29,8 @@ export interface HarnessRunStepArgs {
   signal: AbortSignal
   abortController: AbortController
   // Stream callbacks so the harness stays decoupled from the IntegrateEvent
-  // union: assistant prose and each tool the agent invokes.
+  // union: thinking, assistant prose, and each tool the agent invokes.
+  onThinking: (text: string) => void
   onText: (text: string) => void
   onTool: (name: string, detail: string) => void
 }

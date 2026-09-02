@@ -28,6 +28,7 @@ export type IntegrateEvent =
       total: number
       reason: string
     }
+  | { kind: 'thinking'; text: string }
   | { kind: 'text'; text: string }
   | { kind: 'tool'; name: string; detail: string }
   | {
@@ -152,6 +153,7 @@ export async function runIntegration(args: RunIntegrationArgs): Promise<void> {
           inference,
           signal,
           abortController,
+          onThinking: (text) => onEvent({ kind: 'thinking', text }),
           onText: (text) => onEvent({ kind: 'text', text }),
           onTool: (name, detail) => onEvent({ kind: 'tool', name, detail }),
         })
