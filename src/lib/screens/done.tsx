@@ -12,6 +12,11 @@ export interface IntegrationOutcome {
   totalSteps: number
 }
 
+// Verbatim from the merge design: the developer is told, before they leave, that
+// the agent authenticates itself rather than reusing the app's key.
+export const AGENT_CONSENT_NOTICE =
+  'Your coding agent will be asked to sign in to Seam and choose permissions the first time it uses a Seam tool.'
+
 // The last screen — a centered celebration of what just shipped. Shows how the
 // run went and how long it took; the cost is only shown with --show-cost.
 // `outcome` is null when the wizard finished without running the agent (e.g.
@@ -25,11 +30,16 @@ export function DoneScreen({
   workspaceId,
   outcome,
   showCost,
+  mcpRegistrationAttempted,
 }: {
   workspaceName: string
   workspaceId: string | null
   outcome: IntegrationOutcome | null
   showCost: boolean
+  // The consent notice describes what the MCP registration step does, so it
+  // would mislead a run that quit (e.g. from the drift screen) before that
+  // step ever ran.
+  mcpRegistrationAttempted: boolean
 }): ReactElement {
   const { stdout } = useStdout()
   const rows = stdout?.rows ?? 24
@@ -117,6 +127,17 @@ export function DoneScreen({
           <Text color='cyan' wrap='truncate-middle'>
             {assistantUrl}
           </Text>
+        </Box>
+      )}
+      {mcpRegistrationAttempted && (
+        <Box
+          flexDirection='column'
+          alignItems='center'
+          width={columns}
+          marginTop={1}
+          paddingX={2}
+        >
+          <Text color='gray'>{AGENT_CONSENT_NOTICE}</Text>
         </Box>
       )}
       {/* A margin, not a blank <Text> </Text>: this column is vertically

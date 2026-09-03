@@ -9,7 +9,7 @@ import {
   resetAnalytics,
   startAnalytics,
 } from 'lib/analytics.js'
-import { App } from 'lib/app.js'
+import { App, nextStepsLines } from 'lib/app.js'
 
 // A project root that does not exist, with no key in the environment, keeps the
 // render offline: the wizard opens on the welcome splash and only leaves it on a
@@ -80,4 +80,36 @@ test('App: reports the run it started and the screen it stopped on', async () =>
     last_screen: 'welcome',
     reached_integration: false,
   })
+})
+
+// nextStepsLines feeds both the live message log and the exit report's env
+// hint. .env and .env.example are written independently by saveProjectApiKey,
+// so a refusal on one must not make the hint lie about the other — this was
+// the bug in the merged envRefusedRef (round 2 of the PLA-2951 review).
+test('nextStepsLines: reports .env and .env.example refusals independently', () => {
+  const neither = nextStepsLines('javascript', 'Acme', false, false)
+  expect(neither.join('\n')).toContain(
+    'Your key is in .env (git ignored); .env.example tells the rest of your team what to set.',
+  )
+
+  const envOnly = nextStepsLines('javascript', 'Acme', true, false)
+  expect(envOnly.join('\n')).toContain(
+    'Add SEAM_API_KEY to your real env file yourself; the wizard did not write through the symlinked .env.',
+  )
+  expect(envOnly.join('\n')).not.toContain('.env.example')
+
+  const exampleOnly = nextStepsLines('javascript', 'Acme', false, true)
+  expect(exampleOnly.join('\n')).toContain('Your key is in .env (git ignored)')
+  expect(exampleOnly.join('\n')).toContain(
+    '.env.example is a symlink, so the wizard did not update it.',
+  )
+  expect(exampleOnly.join('\n')).not.toContain('did not write through')
+
+  const both = nextStepsLines('javascript', 'Acme', true, true)
+  expect(both.join('\n')).toContain(
+    'the wizard did not write through the symlinked .env.',
+  )
+  expect(both.join('\n')).toContain(
+    '.env.example is a symlink, so the wizard did not update it',
+  )
 })

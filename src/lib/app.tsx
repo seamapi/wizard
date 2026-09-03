@@ -26,7 +26,13 @@ import {
   type SeamWorkspace,
   type WizardInferenceSession,
 } from './api.js'
-import { ensureProjectEnvConventions, findExistingApiKey } from './env-file.js'
+import {
+  ensureProjectEnvConventions,
+  ENV_EXAMPLE_SYMLINK_REFUSAL_MESSAGE,
+  ENV_SYMLINK_REFUSAL_MESSAGE,
+  findExistingApiKey,
+  type ProjectEnvResult,
+} from './env-file.js'
 import { runInstall } from './run-install.js'
 import { AnalyzeScreen } from './screens/analyze.js'
 import { DoneScreen, type IntegrationOutcome } from './screens/done.js'
@@ -74,9 +80,16 @@ import {
 import {
   CLAUDE_CODE_COMMANDS,
   detectPluginTarget,
+  type PluginTarget,
   SEAM_PLUGIN_NPX_COMMAND,
 } from './steps/install-seam-plugin.js'
 import { type IntegrateEvent, runIntegration } from './steps/integrate.js'
+import {
+  buildMcpExitReportLines,
+  buildMcpRegistrationNotices,
+  type McpRegistration,
+  registerSeamMcpWithClaudeCli,
+} from './steps/register-seam-mcp.js'
 import {
   type ProjectPlan,
   readPreferredSdk,
@@ -201,9 +214,37 @@ export function App({
   // the exit report reads them directly (state is batched/async at that point).
   const finalResultRef = useRef<IntegrationOutcome | null>(null)
   const finalSummaryRef = useRef('')
+  // Set when a symlinked .env refused a write, so the exit report can carry
+  // the refusal and a truthful env hint instead of the transcript line the
+  // alternate screen discards.
+  const envRefusedRef = useRef(false)
+  // Set when a symlinked .env.example refused a write. Tracked separately from
+  // envRefusedRef: .env and .env.example are written independently, so a
+  // refusal on one must not make the exit report lie about the other.
+  const envExampleRefusedRef = useRef(false)
+  // The install-plugin effect's MCP outcome, read by the exit report so a
+  // printed/failed registration's fallback survives past the alternate screen.
+  const mcpRegistrationRef = useRef<{
+    target: PluginTarget
+    registration: McpRegistration
+  } | null>(null)
 
   const addMessage = (message: Msg): void =>
     setMessages((previous) => [...previous, message])
+
+  const reportEnvWrite = (
+    result: Pick<ProjectEnvResult, 'example'> &
+      Partial<Pick<ProjectEnvResult, 'env'>>,
+  ): void => {
+    if (result.env === 'symlink-refused') {
+      addMessage({ tone: 'warn', text: ENV_SYMLINK_REFUSAL_MESSAGE })
+      envRefusedRef.current = true
+    }
+    if (result.example === 'symlink-refused') {
+      addMessage({ tone: 'warn', text: ENV_EXAMPLE_SYMLINK_REFUSAL_MESSAGE })
+      envExampleRefusedRef.current = true
+    }
+  }
 
   // How far the run got with the agent, for the event that closes the run. Read
   // from the ref, so the unmount cleanup — which closes over the first render —
@@ -428,10 +469,13 @@ export function App({
 
   const useCliKey = (found: CliKeyResult): void => {
     try {
-      saveVerifiedKey(root, found.api_key)
+      const envResult = saveVerifiedKey(root, found.api_key)
+      reportEnvWrite(envResult)
+      const savedClause =
+        envResult.env === 'symlink-refused' ? '' : ' · saved to .env'
       addMessage({
         tone: 'ok',
-        text: `Using your Seam CLI login · workspace ${found.workspace.name} · saved to .env`,
+        text: `Using your Seam CLI login · workspace ${found.workspace.name}${savedClause}`,
       })
     } catch {
       addMessage({
@@ -445,9 +489,9 @@ export function App({
   const useProjectKey = (found: ExistingKeyResult): void => {
     try {
       if (found.source === 'environment') {
-        saveVerifiedKey(root, found.api_key)
+        reportEnvWrite(saveVerifiedKey(root, found.api_key))
       } else {
-        ensureProjectEnvConventions(root)
+        reportEnvWrite(ensureProjectEnvConventions(root))
       }
     } catch {
       // The project keeps working with the key it already has.
@@ -592,11 +636,17 @@ export function App({
           },
         })
         if (cancelled) return
+        reportEnvWrite(result.env)
         addMessage({
           tone: 'ok',
           text: `Connected · workspace ${result.workspace.name}`,
         })
-        settleOn(result.workspace, result.api_key, 'browser', '.env')
+        settleOn(
+          result.workspace,
+          result.api_key,
+          'browser',
+          result.env.env === 'symlink-refused' ? null : '.env',
+        )
       } catch (error) {
         if (!cancelled) {
           const message =
@@ -635,8 +685,14 @@ export function App({
       try {
         const result = await verifyAndSaveKey(root, apiKey)
         if (cancelled) return
+        reportEnvWrite(result.env)
         addMessage({ tone: 'ok', text: `Workspace: ${result.workspace.name}` })
-        settleOn(result.workspace, result.api_key, 'pasted', '.env')
+        settleOn(
+          result.workspace,
+          result.api_key,
+          'pasted',
+          result.env.env === 'symlink-refused' ? null : '.env',
+        )
       } catch (error) {
         if (cancelled) return
         const message =
@@ -722,47 +778,75 @@ export function App({
     }
   }, [phase.t, sdk])
 
-  // install the official Seam plugin skills, then finish. We always run the
-  // universal installer (works everywhere); for Claude Code we additionally
-  // point at the native /plugin path, which also wires up the seam-docs MCP.
+  // install the official Seam plugin skills, then register the authenticated
+  // Seam MCP so the developer's own agent gets a delegated grant instead of
+  // reading the app's key out of .env. For Claude Code we additionally point at
+  // the native /plugin path, which wires up the anonymous docs MCP.
   useEffect(() => {
     if (phase.t !== 'install-plugin') return
     const target = detectPluginTarget(root)
 
     let cancelled = false
+    const streamLine = (line: string): void => {
+      if (!cancelled) {
+        setInstallLines((previous) => [...previous.slice(-3), line])
+      }
+    }
     const run = async (): Promise<void> => {
       installStartedAtRef.current = Date.now()
+      let skillsInstalled = true
       try {
-        await runInstall(SEAM_PLUGIN_NPX_COMMAND, root, (line) => {
-          if (!cancelled) {
-            setInstallLines((previous) => [...previous.slice(-3), line])
-          }
-        })
-        if (!cancelled) {
-          trackInstallFinished('plugin', true, { plugin_target: target })
-          addMessage({ tone: 'ok', text: 'Installed the Seam plugin skills' })
-        }
+        await runInstall(SEAM_PLUGIN_NPX_COMMAND, root, streamLine)
       } catch {
-        if (!cancelled) {
-          trackInstallFinished('plugin', false, { plugin_target: target })
-          addMessage({
-            tone: 'warn',
-            text: `Couldn't install the plugin — run it yourself: ${SEAM_PLUGIN_NPX_COMMAND.join(' ')}`,
+        skillsInstalled = false
+      }
+      if (cancelled) return
+
+      addMessage(
+        skillsInstalled
+          ? { tone: 'ok', text: 'Installed the Seam plugin skills' }
+          : {
+              tone: 'warn',
+              text: `Couldn't install the plugin — run it yourself: ${SEAM_PLUGIN_NPX_COMMAND.join(' ')}`,
+            },
+      )
+
+      let registration: McpRegistration = 'printed'
+      if (target === 'claude-code') {
+        try {
+          registration = await registerSeamMcpWithClaudeCli({
+            root,
+            onLine: streamLine,
           })
+        } catch {
+          registration = 'failed'
         }
       }
-      if (!cancelled) {
-        if (target === 'claude-code') {
-          addMessage({
-            tone: 'info',
-            text: 'Claude Code: for the native plugin + seam-docs MCP, you can also run:',
-          })
-          for (const command of CLAUDE_CODE_COMMANDS) {
-            addMessage({ tone: 'plain', text: `  ${command}` })
-          }
-        }
-        setPhase({ t: 'offer-integrate' })
+      if (cancelled) return
+
+      mcpRegistrationRef.current = { target, registration }
+      trackInstallFinished('plugin', skillsInstalled, {
+        plugin_target: target,
+        mcp_registration: registration,
+      })
+      for (const notice of buildMcpRegistrationNotices({
+        target,
+        registration,
+      })) {
+        addMessage(notice)
       }
+
+      setInstallLines([])
+      if (target === 'claude-code') {
+        addMessage({
+          tone: 'info',
+          text: 'Claude Code: for the native plugin + seam-docs MCP, you can also run:',
+        })
+        for (const command of CLAUDE_CODE_COMMANDS) {
+          addMessage({ tone: 'plain', text: `  ${command}` })
+        }
+      }
+      setPhase({ t: 'offer-integrate' })
     }
     run().catch((error: unknown) => {
       if (cancelled) return
@@ -1029,7 +1113,27 @@ export function App({
           : '')
       lines.push(stats)
     }
-    lines.push('', ...nextStepsLines(sdk, workspaceName))
+    lines.push(
+      '',
+      ...nextStepsLines(
+        sdk,
+        workspaceName,
+        envRefusedRef.current,
+        envExampleRefusedRef.current,
+      ),
+    )
+    if (envRefusedRef.current) {
+      lines.push('', ENV_SYMLINK_REFUSAL_MESSAGE)
+    }
+    if (envExampleRefusedRef.current) {
+      lines.push('', ENV_EXAMPLE_SYMLINK_REFUSAL_MESSAGE)
+    }
+
+    const mcpOutcome = mcpRegistrationRef.current
+    if (mcpOutcome != null) {
+      lines.push('', ...buildMcpExitReportLines(mcpOutcome))
+    }
+
     if (showChanges && finalSummaryRef.current.length > 0) {
       lines.push('', 'What changed:')
       for (const line of finalSummaryRef.current.split('\n')) {
@@ -1210,6 +1314,7 @@ export function App({
         workspaceId={workspace?.workspace_id ?? null}
         outcome={finalResult}
         showCost={showCost}
+        mcpRegistrationAttempted={mcpRegistrationRef.current != null}
       />
     )
   }
@@ -1491,11 +1596,23 @@ function projectKeyLabel(
 
 // Said only of what the login actually is: a token the wizard cannot hand to
 // a project, or one it could not verify.
-function nextStepsLines(sdk: Sdk | null, workspaceName: string): string[] {
-  const envHint =
-    sdk === 'python'
+export function nextStepsLines(
+  sdk: Sdk | null,
+  workspaceName: string,
+  envRefused: boolean,
+  envExampleRefused: boolean,
+): string[] {
+  const envHint = envRefused
+    ? `Add SEAM_API_KEY to your real env file yourself; the wizard did not write through the symlinked .env.${
+        envExampleRefused
+          ? ' .env.example is a symlink, so the wizard did not update it either.'
+          : ''
+      }`
+    : sdk === 'python'
       ? "Make sure SEAM_API_KEY is exported (it's in .env)."
-      : 'Your key is in .env (git ignored); .env.example tells the rest of your team what to set.'
+      : envExampleRefused
+        ? 'Your key is in .env (git ignored); .env.example is a symlink, so the wizard did not update it.'
+        : 'Your key is in .env (git ignored); .env.example tells the rest of your team what to set.'
   return [
     `You're set up in ${workspaceName}`,
     'Next steps:',

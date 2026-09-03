@@ -8,7 +8,7 @@ import {
   getWorkspaceForApiKey,
   type SeamWorkspace,
 } from 'lib/api.js'
-import { saveProjectApiKey } from 'lib/env-file.js'
+import { type ProjectEnvResult, saveProjectApiKey } from 'lib/env-file.js'
 
 // The dashboard "wizard" page mints a key and posts it back to the local
 // callback. The console host itself comes from getConsoleUrl().
@@ -18,6 +18,7 @@ const CALLBACK_TIMEOUT_MS = 5 * 60 * 1000
 export interface WebConnectResult {
   workspace: SeamWorkspace
   api_key: string
+  env: ProjectEnvResult
 }
 
 // Progress callbacks so the Ink UI can render the handoff without any logging
@@ -113,8 +114,11 @@ export async function connectViaWeb(
   })
 
   const workspace = await getWorkspaceForApiKey(payload.api_key)
-  saveProjectApiKey(root, payload.api_key)
-  return { workspace, api_key: payload.api_key }
+  return {
+    workspace,
+    api_key: payload.api_key,
+    env: saveProjectApiKey(root, payload.api_key),
+  }
 }
 
 function respondJson(
