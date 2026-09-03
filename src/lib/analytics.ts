@@ -127,6 +127,10 @@ export const track = (
     current.client.capture({
       distinctId: current.distinct_id,
       event,
+      // Stamped here rather than left to the SDK, which assigns the timestamp
+      // inside an async path: two events captured in the same tick can then
+      // land out of order, and PostHog orders funnel steps by timestamp.
+      timestamp: new Date(),
       properties: sanitize({
         ...current.common,
         seconds_since_start: secondsSince(current.started_at),
@@ -156,15 +160,35 @@ export const trackScreen = (screen: string): void => {
 }
 
 /**
- * Attribute the rest of the run to the workspace it connected to. The id (not
- * the name) rides along on every later event, and on the workspace group so
- * PostHog can roll a workspace's runs up together.
+ * Attribute the rest of the run to the workspace it connected to: its id rides
+ * along on every later event and on the workspace group, so a workspace's runs
+ * roll up together. The name is sent once, here, to label that group.
  */
 export const setAnalyticsWorkspace = (workspace: SeamWorkspace): void => {
-  if (run == null) return
-  run.workspace_id = workspace.workspace_id
-  run.common['workspace_id'] = workspace.workspace_id
-  run.common['workspace_is_sandbox'] = workspace.is_sandbox
+  const current = run
+  if (current == null) return
+  current.workspace_id = workspace.workspace_id
+  current.common['workspace_id'] = workspace.workspace_id
+  current.common['workspace_is_sandbox'] = workspace.is_sandbox
+
+  try {
+    // Name the group, or a workspace reads as a bare UUID everywhere it is
+    // grouped. Group properties are shared across everything that reports to
+    // this workspace, so only what the wizard knows first-hand goes here.
+    current.client.groupIdentify({
+      groupType: 'workspace',
+      groupKey: workspace.workspace_id,
+      // Attributed to this install, so the call does not mint a person of its
+      // own for the workspace.
+      distinctId: current.distinct_id,
+      properties: {
+        name: workspace.name,
+        is_sandbox: workspace.is_sandbox,
+      },
+    })
+  } catch {
+    // Analytics never reports itself to the developer, and never fails a run.
+  }
 }
 
 /** Attribute the rest of the run to the SDK it is setting up. */
