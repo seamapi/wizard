@@ -65,6 +65,16 @@ const wizard = async (options: WizardOptions = {}): Promise<void> => {
     return
   }
 
+  // Every run reaches a prompt — the connect method, the SDK, the offer to
+  // write the integration — and a prompt needs stdin in raw mode, which only a
+  // TTY allows. Without one the first prompt throws from inside Ink's render
+  // and the developer gets a React stack trace, so say what is wrong instead.
+  if (!isInteractive()) {
+    writeError(nonInteractiveNotice(commandName))
+    process.exitCode = 1
+    return
+  }
+
   // Dev-only: preview a screen's layout without the auth/agent flow. Passing
   // `--debug-screen` with no name opens a chooser of every available screen.
   const debugScreen = args['debug-screen']
@@ -117,7 +127,28 @@ const usage = (commandName: string): string =>
     '',
   ].join('\n')
 
-// TODO: Replace this with a logger wrapper.
+const nonInteractiveNotice = (commandName: string): string =>
+  [
+    'Seam Wizard needs an interactive terminal.',
+    '',
+    '  It asks which account to connect, which SDK to install, and whether to',
+    '  write the integration, so it cannot run with stdin redirected — in a',
+    '  pipe, a CI job, or a non-interactive shell.',
+    '',
+    `  Run '${commandName}' in your terminal instead.`,
+    '',
+  ].join('\n')
+
+// Ink reads stdin, so this is the condition Ink itself checks before allowing
+// raw mode. Where stdout is redirected the wizard still runs: it skips the
+// alternate screen and leaves its frames in the log.
+const isInteractive = (): boolean => process.stdin.isTTY === true
+
+// TODO: Replace these with a logger wrapper.
 const write = (message: string): void => {
   process.stdout.write(`${message}\n`)
+}
+
+const writeError = (message: string): void => {
+  process.stderr.write(`${message}\n`)
 }
