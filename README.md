@@ -84,6 +84,12 @@ the run. It resolves when the wizard is done, and only rejects if the
 wizard could not run at all: a step that fails reports itself to the
 developer and does not reject.
 
+Every run reaches a prompt, so the wizard needs an interactive terminal.
+Where stdin is not a TTY — a pipe, a CI job, a non-interactive shell — it
+writes a notice to stderr, sets a non-zero exit code, and resolves
+without rendering anything.
+`--help` and `--version` still work there.
+
 Pass `cwd` to set the project root the wizard sets up.
 It defaults to `process.cwd()`,
 which is the project the command was run in.
