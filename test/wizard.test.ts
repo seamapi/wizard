@@ -7,11 +7,40 @@ import wizard from 'lib/wizard.js'
 
 vi.mock('lib/render.js', () => ({ renderApp: vi.fn() }))
 
+// The wizard refuses to run without a TTY, so a test that expects it to render
+// has to look like a terminal. Tests for the refusal set this to undefined.
+const setInteractive = (isTty: boolean | undefined): void => {
+  Object.defineProperty(process.stdin, 'isTTY', {
+    value: isTty,
+    configurable: true,
+  })
+}
+
+const initialIsTty = process.stdin.isTTY
+
 beforeEach(() => {
   vi.mocked(renderApp).mockClear()
+  setInteractive(true)
 })
 
-afterEach(resetAdapter)
+afterEach(() => {
+  setInteractive(initialIsTty)
+  // Set by the refusal path; left alone it would fail the whole test run.
+  process.exitCode = 0
+  resetAdapter()
+})
+
+const captureError = async (
+  options: Parameters<typeof wizard>[0],
+): Promise<string> => {
+  const write = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+  try {
+    await wizard(options)
+    return write.mock.calls.map(([chunk]) => String(chunk)).join('')
+  } finally {
+    write.mockRestore()
+  }
+}
 
 const captureOutput = async (
   options: Parameters<typeof wizard>[0],
@@ -133,4 +162,33 @@ test('wizard: asks no adapter anything to display usage', async () => {
   })
 
   expect(getAuthSpy).not.toHaveBeenCalled()
+})
+
+test('wizard: refuses to run without an interactive terminal', async () => {
+  setInteractive(undefined)
+
+  const output = await captureError({ argv: [], commandName: 'seam wizard' })
+
+  expect(output).toContain('needs an interactive terminal')
+  expect(output).toContain("Run 'seam wizard' in your terminal instead.")
+  expect(renderApp).not.toHaveBeenCalled()
+  expect(process.exitCode).toBe(1)
+})
+
+test('wizard: still displays usage without an interactive terminal', async () => {
+  setInteractive(undefined)
+
+  const output = await captureOutput({ argv: ['--help'] })
+
+  expect(output).toContain('$ wizard [options]')
+  expect(process.exitCode).not.toBe(1)
+})
+
+test('wizard: still displays the version without an interactive terminal', async () => {
+  setInteractive(undefined)
+
+  const output = await captureOutput({ argv: ['--version'] })
+
+  expect(output.trim()).toBe(seamapiWizardVersion)
+  expect(process.exitCode).not.toBe(1)
 })
