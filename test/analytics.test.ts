@@ -205,7 +205,10 @@ test('carries the workspace and SDK on every event after they are known', async 
   track('wizard_connected')
   await flushAnalytics()
 
-  const [before, after] = captured.events()
+  const byName = (name: string): CapturedEvent | undefined =>
+    captured.events().find((event) => event.event === name)
+  const before = byName('wizard_init_finished')
+  const after = byName('wizard_connected')
   expect(before?.properties['workspace_id']).toBeUndefined()
   expect(after?.properties).toMatchObject({
     workspace_id: 'workspace-1',
@@ -276,4 +279,52 @@ test('a run reports even when the network is gone', async () => {
   track('wizard_run_started')
 
   await expect(flushAnalytics()).resolves.toBeUndefined()
+})
+
+test('names the workspace group so it is not a bare id', async () => {
+  vi.stubEnv('SEAM_WIZARD_POSTHOG_KEY', 'phc_test_project')
+  const captured = captureRequests()
+
+  await startAnalytics({ command: 'seam wizard' })
+  setAnalyticsWorkspace(workspace)
+  track('wizard_connected')
+  await flushAnalytics()
+
+  const identify = captured
+    .events()
+    .find((event) => event.event === '$groupidentify')
+  expect(identify?.properties).toMatchObject({
+    $group_type: 'workspace',
+    $group_key: 'workspace-1',
+    $group_set: { name: 'Acme', is_sandbox: false },
+  })
+  // Attributed to the install, so the workspace gets no person of its own.
+  expect(identify?.distinct_id).toMatch(/^wizard_cli_/)
+})
+
+test('stamps every event at the moment it is captured', async () => {
+  vi.stubEnv('SEAM_WIZARD_POSTHOG_KEY', 'phc_test_project')
+  const captured = captureRequests()
+
+  await startAnalytics({ command: 'seam wizard' })
+  const before = Date.now()
+  trackScreen('welcome')
+  trackScreen('init')
+  trackScreen('method')
+  const after = Date.now()
+  await flushAnalytics()
+
+  const stamps = captured
+    .events()
+    .filter((event) => event.event === 'wizard_screen_viewed')
+    .map((event) => Date.parse(event.timestamp))
+
+  expect(stamps).toHaveLength(3)
+  // Pins the invariant the funnels depend on: a stamp belongs to the capture
+  // call, so capture order is timestamp order.
+  for (const stamp of stamps) {
+    expect(stamp).toBeGreaterThanOrEqual(before)
+    expect(stamp).toBeLessThanOrEqual(after)
+  }
+  expect(stamps).toEqual([...stamps].sort((a, b) => a - b))
 })
