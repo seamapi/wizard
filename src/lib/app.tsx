@@ -781,7 +781,7 @@ export function App({
   // install the official Seam plugin skills, then register the authenticated
   // Seam MCP so the developer's own agent gets a delegated grant instead of
   // reading the app's key out of .env. For Claude Code we additionally point at
-  // the native /plugin path, which wires up the anonymous docs MCP.
+  // the native /plugin path, which wires up the anonymous Seam MCP.
   useEffect(() => {
     if (phase.t !== 'install-plugin') return
     const target = detectPluginTarget(root)
@@ -840,7 +840,7 @@ export function App({
       if (target === 'claude-code') {
         addMessage({
           tone: 'info',
-          text: 'Claude Code: for the native plugin + seam-docs MCP, you can also run:',
+          text: 'Claude Code: for the native plugin + Seam MCP, you can also run:',
         })
         for (const command of CLAUDE_CODE_COMMANDS) {
           addMessage({ tone: 'plain', text: `  ${command}` })
@@ -1649,7 +1649,7 @@ function formatTool(name: string, detail: string): string {
             ? 'search'
             : name === 'WebFetch'
               ? 'fetch'
-              : name.startsWith('mcp__seam-docs__')
+              : name.startsWith('mcp__seam__')
                 ? 'docs'
                 : name
   return detail.length > 0 ? `${verb} ${truncate(detail, 60)}` : verb

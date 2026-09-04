@@ -19,7 +19,7 @@ afterEach(() => {
   }
 })
 
-test('upsertSeamMcp preserves existing servers and replaces only seam-docs', () => {
+test('upsertSeamMcp preserves existing servers and replaces only seam', () => {
   const root = mkdtempSync(join(tmpdir(), 'seam-pi-'))
   dirs.push(root)
   mkdirSync(join(root, '.pi'))
@@ -28,7 +28,7 @@ test('upsertSeamMcp preserves existing servers and replaces only seam-docs', () 
     JSON.stringify({
       mcpServers: {
         existing: { command: 'existing' },
-        'seam-docs': { command: 'old' },
+        seam: { command: 'old' },
       },
     }),
   )
@@ -40,8 +40,8 @@ test('upsertSeamMcp preserves existing servers and replaces only seam-docs', () 
   ).toEqual({
     mcpServers: {
       existing: { command: 'existing' },
-      'seam-docs': {
-        url: 'https://mcp.seam.co/mcp',
+      seam: {
+        url: 'https://mcp.seam.co/mcp?agent=wizard',
         lifecycle: 'eager',
       },
     },

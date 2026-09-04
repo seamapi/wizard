@@ -10,10 +10,7 @@ import {
 } from './secret-paths.js'
 import type { Harness, HarnessRunStepArgs, StepRunResult } from './types.js'
 
-// The official Seam MCP — same server the anthropic harness and the seam-plugin
-// wire up. Bridged into pi over stdio via mcp-remote, so pi reuses the OAuth
-// token cache mcp-remote already established.
-const SEAM_MCP_URL = 'https://mcp.seam.co/mcp'
+const SEAM_MCP_URL = 'https://mcp.seam.co/mcp?agent=wizard'
 const PROVIDER = 'seam-proxy'
 
 // Cap on agent turns, matching the anthropic control's maxTurns. pi exposes no
@@ -31,7 +28,7 @@ export function upsertSeamMcp(root: string): void {
 
   config.mcpServers = {
     ...servers,
-    'seam-docs': { url: SEAM_MCP_URL, lifecycle: 'eager' },
+    seam: { url: SEAM_MCP_URL, lifecycle: 'eager' },
   }
   mkdirSync(configDir, { recursive: true })
   writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`)
@@ -74,7 +71,7 @@ const PRICES_USD_PER_MTOK: Record<string, { input: number; output: number }> = {
 
 // The challenger harness: drives the integration with pi.dev's coding agent
 // (@earendil-works/pi-coding-agent), pointed at the same Seam inference proxy
-// (registered as an anthropic-messages provider) and the same seam-docs MCP, so
+// (registered as an anthropic-messages provider) and the same Seam MCP, so
 // it is a fair A/B against the anthropic control. Heavy deps are imported lazily
 // so selecting `anthropic` never loads them.
 export const piHarness: Harness = {
