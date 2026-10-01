@@ -61,16 +61,23 @@ test('malformed and wrong token types preserve the native local error', async ()
   expect(fetch).not.toHaveBeenCalled()
 })
 
-test('an actual unauthorized response reports 401', async () => {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async () => Response.json({}, { status: 401 })),
-  )
-  await expect(getWorkspaceForApiKey('seam_key')).rejects.toMatchObject({
-    name: 'SeamHttpUnauthorizedError',
-    statusCode: 401,
-  })
-})
+test.each(['json', 'text'])(
+  'an actual unauthorized %s response reports 401',
+  async (format) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        format === 'json'
+          ? Response.json({}, { status: 401 })
+          : new Response('secret-marker', { status: 401 }),
+      ),
+    )
+    await expect(getWorkspaceForApiKey('seam_key')).rejects.toMatchObject({
+      name: 'SeamHttpUnauthorizedError',
+      statusCode: 401,
+    })
+  },
+)
 
 test('a 5xx response preserves the native SDK exception and details', async () => {
   vi.stubGlobal(

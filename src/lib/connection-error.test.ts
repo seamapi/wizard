@@ -95,6 +95,14 @@ test.each([
     'transport_error',
     null,
   ],
+  [
+    Object.assign(new Error('secret-marker'), {
+      isAxiosError: true,
+      response: { status: 401, data: 'secret-marker' },
+    }),
+    'unauthorized',
+    401,
+  ],
   [new Error('secret-marker'), 'unknown', null],
   [new TypeError('secret-marker'), 'unknown', null],
   ['secret-marker', 'unknown', null],

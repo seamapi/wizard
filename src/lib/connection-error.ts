@@ -84,6 +84,7 @@ export function classifyKeyValidationError(
     'status' in error.response
   ) {
     const status = knownHttpStatus(error.response.status)
+    if (status === 401) return keyValidationFailure('unauthorized', 401)
     if (status != null) return keyValidationFailure('api_error', status)
   }
   // Axios' fetch adapter identifies transport failures by code. An arbitrary
