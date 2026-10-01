@@ -1,6 +1,6 @@
 import { getAuth } from 'lib/adapter.js'
 import { getWorkspaceForApiKey, type SeamWorkspace } from 'lib/api.js'
-import { ConnectionError } from 'lib/connection-error.js'
+import { markConnectionFailure } from 'lib/connection-error.js'
 import {
   findExistingApiKey,
   type ProjectEnvResult,
@@ -67,8 +67,8 @@ export async function verifyAndSaveKey(
       api_key: trimmed,
       env: saveProjectApiKey(root, trimmed),
     }
-  } catch {
-    throw new ConnectionError('env_write')
+  } catch (error) {
+    throw markConnectionFailure(error, 'env_write')
   }
 }
 

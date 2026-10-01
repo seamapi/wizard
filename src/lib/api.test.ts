@@ -1,15 +1,7 @@
-import {
-  SeamHttpApiError,
-  SeamHttpInvalidTokenError,
-  SeamHttpUnauthorizedError,
-} from '@seamapi/http'
+import { SeamHttpInvalidTokenError } from '@seamapi/http'
 import { afterEach, expect, test, vi } from 'vitest'
 
-import {
-  classifyKeyValidationError,
-  exchangeWizardInferenceToken,
-  getWorkspaceForApiKey,
-} from './api.js'
+import { exchangeWizardInferenceToken, getWorkspaceForApiKey } from './api.js'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -58,15 +50,13 @@ test('uses the workspace SDK and its raw client', async () => {
   expect(await requests[1]?.json()).toEqual({})
 })
 
-test('malformed and wrong token types fail locally without claiming 401', async () => {
+test('malformed and wrong token types preserve the native local error', async () => {
   const fetch = vi.fn()
   vi.stubGlobal('fetch', fetch)
   for (const token of ['not-a-key', 'seam_pk_not-a-key']) {
-    await expect(getWorkspaceForApiKey(token)).rejects.toMatchObject({
-      category: 'invalid_token_format',
-      statusCode: null,
-      message: expect.stringContaining('not a supported Seam API key'),
-    })
+    await expect(getWorkspaceForApiKey(token)).rejects.toBeInstanceOf(
+      SeamHttpInvalidTokenError,
+    )
   }
   expect(fetch).not.toHaveBeenCalled()
 })
@@ -77,12 +67,12 @@ test('an actual unauthorized response reports 401', async () => {
     vi.fn(async () => Response.json({}, { status: 401 })),
   )
   await expect(getWorkspaceForApiKey('seam_key')).rejects.toMatchObject({
-    category: 'unauthorized',
+    name: 'SeamHttpUnauthorizedError',
     statusCode: 401,
   })
 })
 
-test('a 5xx response reports its status without the API message', async () => {
+test('a 5xx response preserves the native SDK exception and details', async () => {
   vi.stubGlobal(
     'fetch',
     vi.fn(async () =>
@@ -93,58 +83,13 @@ test('a 5xx response reports its status without the API message', async () => {
     ),
   )
   await expect(getWorkspaceForApiKey('seam_key')).rejects.toMatchObject({
-    category: 'api_error',
+    name: 'SeamHttpApiError',
     statusCode: 503,
-    message: 'The Seam API returned 503. Please try again in a moment.',
+    message: 'secret-marker',
   })
 })
 
-test.each([
-  [
-    new SeamHttpInvalidTokenError('secret-marker'),
-    'invalid_token_format',
-    null,
-  ],
-  [new SeamHttpUnauthorizedError('secret-marker'), 'unauthorized', 401],
-  [
-    new SeamHttpApiError(
-      {
-        type: 'internal_error',
-        message: 'secret-marker',
-        data: { key: 'secret-marker' },
-      },
-      500,
-      'secret-marker',
-    ),
-    'api_error',
-    500,
-  ],
-  [
-    Object.assign(new Error('secret-marker'), {
-      code: 'ERR_NETWORK',
-      config: { url: 'secret-marker' },
-    }),
-    'transport_error',
-    null,
-  ],
-  [
-    Object.assign(new Error('secret-marker'), { code: 'ETIMEDOUT' }),
-    'transport_error',
-    null,
-  ],
-  [new Error('secret-marker'), 'unknown', null],
-  [new TypeError('secret-marker'), 'unknown', null],
-  ['secret-marker', 'unknown', null],
-])('normalizes SDK failures safely (%#)', (error, category, statusCode) => {
-  const result = classifyKeyValidationError(error)
-  expect(result).toMatchObject({ category, statusCode })
-  expect(`${result.stack} ${JSON.stringify(result)}`).not.toContain(
-    'secret-marker',
-  )
-  expect(result).not.toHaveProperty('cause')
-})
-
-test('fetch transport failures survive the SDK boundary as transport errors', async () => {
+test('fetch transport failures preserve the SDK transport exception', async () => {
   vi.stubGlobal(
     'fetch',
     vi.fn(async () => {
@@ -152,8 +97,7 @@ test('fetch transport failures survive the SDK boundary as transport errors', as
     }),
   )
   await expect(getWorkspaceForApiKey('seam_key')).rejects.toMatchObject({
-    category: 'transport_error',
-    statusCode: null,
+    code: 'ERR_NETWORK',
   })
 })
 
@@ -163,8 +107,20 @@ test('non-JSON HTTP failures retain their known status', async () => {
     vi.fn(async () => new Response('secret-marker', { status: 502 })),
   )
   await expect(getWorkspaceForApiKey('seam_key')).rejects.toMatchObject({
-    category: 'api_error',
-    statusCode: 502,
-    message: 'The Seam API returned 502. Please try again in a moment.',
+    response: { status: 502 },
+  })
+})
+
+test('the SDK transport exception retains its original cause', async () => {
+  const original = new TypeError('secret-marker')
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => {
+      throw original
+    }),
+  )
+  await expect(getWorkspaceForApiKey('seam_key')).rejects.toMatchObject({
+    isAxiosError: true,
+    cause: original,
   })
 })

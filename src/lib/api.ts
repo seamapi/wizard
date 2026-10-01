@@ -1,12 +1,11 @@
 import {
   isSeamHttpApiError,
-  isSeamHttpUnauthorizedError,
-  SeamHttpInvalidTokenError,
   SeamHttpWorkspaces,
   type Workspace,
 } from '@seamapi/http'
 
 import { getAuth } from 'lib/adapter.js'
+import { markConnectionFailure } from 'lib/connection-error.js'
 
 export function getApiBaseUrl(): string {
   return getAuth().endpoint.replace(/\/+$/, '')
@@ -19,87 +18,6 @@ export type SeamWorkspace = Pick<
 
 export class ApiKeyError extends Error {}
 
-export type KeyValidationFailure =
-  | 'invalid_token_format'
-  | 'unauthorized'
-  | 'api_error'
-  | 'transport_error'
-  | 'unknown'
-
-// Only fixed messages and a known HTTP status survive the SDK boundary. Never
-// retain the original error: it may contain the key, headers or request URL.
-export class KeyValidationError extends ApiKeyError {
-  constructor(
-    readonly category: KeyValidationFailure,
-    readonly statusCode: number | null = null,
-  ) {
-    const messages: Record<KeyValidationFailure, string> = {
-      invalid_token_format:
-        'That value is not a supported Seam API key. Copy the full API key, including the seam_ prefix.',
-      unauthorized:
-        'The Seam API rejected that key (401). Check that the key is valid and active.',
-      api_error:
-        statusCode == null
-          ? 'The Seam API returned an error. Please try again in a moment.'
-          : `The Seam API returned ${statusCode}. Please try again in a moment.`,
-      transport_error:
-        'Could not reach the Seam API. Check your connection and try again.',
-      unknown:
-        'An unexpected error occurred while verifying the key. Please try again.',
-    }
-    super(messages[category])
-  }
-}
-
-export function classifyKeyValidationError(error: unknown): KeyValidationError {
-  if (error instanceof SeamHttpInvalidTokenError) {
-    return new KeyValidationError('invalid_token_format')
-  }
-  if (isSeamHttpUnauthorizedError(error)) {
-    return new KeyValidationError('unauthorized', 401)
-  }
-  if (isSeamHttpApiError(error)) {
-    return new KeyValidationError(
-      'api_error',
-      knownHttpStatus(error.statusCode),
-    )
-  }
-  // A non-JSON HTTP failure can remain an Axios error instead of becoming a
-  // SeamHttpApiError. Its response status is still evidence of an HTTP failure.
-  if (
-    error instanceof Error &&
-    'isAxiosError' in error &&
-    error.isAxiosError === true &&
-    'response' in error &&
-    typeof error.response === 'object' &&
-    error.response != null &&
-    'status' in error.response
-  ) {
-    const status = knownHttpStatus(error.response.status)
-    if (status != null) return new KeyValidationError('api_error', status)
-  }
-  // Axios' fetch adapter identifies transport failures by code. An arbitrary
-  // Error or TypeError is not evidence of a network failure.
-  if (
-    error instanceof Error &&
-    'code' in error &&
-    typeof error.code === 'string' &&
-    ['ERR_NETWORK', 'ECONNABORTED', 'ETIMEDOUT'].includes(error.code)
-  ) {
-    return new KeyValidationError('transport_error')
-  }
-  return new KeyValidationError('unknown')
-}
-
-function knownHttpStatus(status: unknown): number | null {
-  return typeof status === 'number' &&
-    Number.isInteger(status) &&
-    status >= 100 &&
-    status <= 599
-    ? status
-    : null
-}
-
 const getApi = (apiKey: string): SeamHttpWorkspaces =>
   new SeamHttpWorkspaces({ apiKey, endpoint: getApiBaseUrl() })
 
@@ -109,7 +27,7 @@ export async function getWorkspaceForApiKey(
   try {
     return await getApi(apiKey).get()
   } catch (error) {
-    throw classifyKeyValidationError(error)
+    throw markConnectionFailure(error, 'key_validation')
   }
 }
 
