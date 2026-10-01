@@ -1,12 +1,11 @@
 import {
   isSeamHttpApiError,
-  isSeamHttpUnauthorizedError,
-  SeamHttpInvalidTokenError,
   SeamHttpWorkspaces,
   type Workspace,
 } from '@seamapi/http'
 
 import { getAuth } from 'lib/adapter.js'
+import { markConnectionFailure } from 'lib/connection-error.js'
 
 export function getApiBaseUrl(): string {
   return getAuth().endpoint.replace(/\/+$/, '')
@@ -28,22 +27,7 @@ export async function getWorkspaceForApiKey(
   try {
     return await getApi(apiKey).get()
   } catch (error) {
-    if (
-      error instanceof SeamHttpInvalidTokenError ||
-      isSeamHttpUnauthorizedError(error)
-    ) {
-      throw new ApiKeyError(
-        'That key was rejected (401). Make sure you copied the full key, including the seam_ prefix.',
-      )
-    }
-    if (isSeamHttpApiError(error)) {
-      throw new ApiKeyError(
-        `The Seam API returned ${error.statusCode}. Please try again in a moment.`,
-      )
-    }
-    throw new ApiKeyError(
-      'Could not reach the Seam API. Check your network connection and try again.',
-    )
+    throw markConnectionFailure(error, 'key_validation')
   }
 }
 

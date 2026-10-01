@@ -8,6 +8,7 @@ import {
   getWorkspaceForApiKey,
   type SeamWorkspace,
 } from 'lib/api.js'
+import { markConnectionFailure } from 'lib/connection-error.js'
 import { type ProjectEnvResult, saveProjectApiKey } from 'lib/env-file.js'
 
 // The dashboard "wizard" page mints a key and posts it back to the local
@@ -108,16 +109,28 @@ export async function connectViaWeb(
 
     const timeout = setTimeout(() => {
       server.close()
-      reject(new Error('Timed out waiting for the browser.'))
+      reject(
+        markConnectionFailure(
+          new Error('Timed out waiting for the browser.'),
+          'browser_callback',
+          'timeout',
+        ),
+      )
     }, CALLBACK_TIMEOUT_MS)
     timeout.unref()
+  }).catch((error: unknown) => {
+    throw markConnectionFailure(error, 'browser_callback')
   })
 
   const workspace = await getWorkspaceForApiKey(payload.api_key)
-  return {
-    workspace,
-    api_key: payload.api_key,
-    env: saveProjectApiKey(root, payload.api_key),
+  try {
+    return {
+      workspace,
+      api_key: payload.api_key,
+      env: saveProjectApiKey(root, payload.api_key),
+    }
+  } catch (error) {
+    throw markConnectionFailure(error, 'env_write')
   }
 }
 

@@ -19,13 +19,13 @@ import {
   trackScreen,
 } from './analytics.js'
 import {
-  ApiKeyError,
   exchangeWizardInferenceToken,
   getInferenceBaseUrl,
   looksLikeSeamApiKey,
   type SeamWorkspace,
   type WizardInferenceSession,
 } from './api.js'
+import { describeConnectionFailure } from './connection-error.js'
 import {
   ensureProjectEnvConventions,
   ENV_EXAMPLE_SYMLINK_REFUSAL_MESSAGE,
@@ -649,13 +649,10 @@ export function App({
         )
       } catch (error) {
         if (!cancelled) {
-          const message =
-            error instanceof Error
-              ? error.message
-              : 'Browser connection failed.'
+          const { message, properties } = describeConnectionFailure(error)
           track('wizard_connect_failed', {
             method: 'browser',
-            reason: message,
+            ...properties,
           })
           setPhase({ t: 'error', message })
         }
@@ -665,10 +662,7 @@ export function App({
       if (cancelled) return
       setPhase({
         t: 'error',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'The wizard hit an unexpected error.',
+        message: describeConnectionFailure(error).message,
       })
     })
     return () => {
@@ -695,20 +689,17 @@ export function App({
         )
       } catch (error) {
         if (cancelled) return
-        const message =
-          error instanceof ApiKeyError
-            ? error.message
-            : "Couldn't verify the key."
+        const { message, properties } = describeConnectionFailure(error)
         track('wizard_connect_failed', {
           method: 'paste',
-          reason: message,
+          ...properties,
           attempt: attemptRef.current,
           gave_up: attemptRef.current >= MAX_ATTEMPTS,
         })
         if (attemptRef.current >= MAX_ATTEMPTS) {
           setPhase({
             t: 'error',
-            message: 'Too many attempts. Re-run with a valid key.',
+            message: `Too many attempts. ${message} Re-run the wizard to try again.`,
           })
         } else {
           setPasteError(message)
@@ -721,10 +712,7 @@ export function App({
       if (cancelled) return
       setPhase({
         t: 'error',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'The wizard hit an unexpected error.',
+        message: describeConnectionFailure(error).message,
       })
     })
     return () => {

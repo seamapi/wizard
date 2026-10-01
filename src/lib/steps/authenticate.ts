@@ -1,5 +1,6 @@
 import { getAuth } from 'lib/adapter.js'
 import { getWorkspaceForApiKey, type SeamWorkspace } from 'lib/api.js'
+import { markConnectionFailure } from 'lib/connection-error.js'
 import {
   findExistingApiKey,
   type ProjectEnvResult,
@@ -60,7 +61,15 @@ export async function verifyAndSaveKey(
 ): Promise<AuthResult> {
   const trimmed = apiKey.trim()
   const workspace = await getWorkspaceForApiKey(trimmed)
-  return { workspace, api_key: trimmed, env: saveProjectApiKey(root, trimmed) }
+  try {
+    return {
+      workspace,
+      api_key: trimmed,
+      env: saveProjectApiKey(root, trimmed),
+    }
+  } catch (error) {
+    throw markConnectionFailure(error, 'env_write')
+  }
 }
 
 export function saveVerifiedKey(
