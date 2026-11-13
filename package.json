@@ -118,7 +118,11 @@
     "vitest": "^4.1.10"
   },
   "overrides": {
-    "@modelcontextprotocol/client": "2.2.0",
-    "@modelcontextprotocol/core": "2.2.0"
+    "@modelcontextprotocol/client": "2.4.0",
+    "@modelcontextprotocol/core": "2.4.0",
+    "undici": "^8.12.4",
+    "brace-expansion@>=4 <5.0.12": "5.0.13",
+    "fast-xml-parser": "^5.12.1",
+    "@vitest/mocker": "4.1.12"
   }
 }
