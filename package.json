@@ -1,4 +1,5 @@
 {
+  "$schema": "https://json.schemastore.org/package.json",
   "name": "@seamapi/wizard",
   "version": "0.48.4",
   "description": "The AI powered Seam setup wizard.",
@@ -69,7 +70,7 @@
   "devEngines": {
     "runtime": {
       "name": "node",
-      "version": "^24.11.0 || ^22.12.0"
+      "version": "^26.0.0 || ^24.11.0 || ^22.12.0"
     },
     "packageManager": {
       "name": "npm",
@@ -77,6 +78,9 @@
     }
   },
   "packageManager": "npm@11.19.0",
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  },
   "peerDependencies": {
     "ink": "^7.1.1",
     "react": "^19.2.8"
@@ -96,20 +100,20 @@
   "devDependencies": {
     "@seamapi/cli": "^0.49.0",
     "@types/minimist": "^1.2.5",
-    "@types/node": "^24.10.9",
+    "@types/node": "^26.6.6",
     "@types/react": "^19.2.17",
     "@vitest/coverage-v8": "^4.1.10",
-    "del-cli": "^7.0.0",
-    "eslint": "^9.31.0",
+    "del-cli": "^8.0.1",
+    "eslint": "^10.14.0",
     "eslint-import-resolver-typescript": "^4.4.5",
-    "eslint-plugin-import": "^2.32.0",
-    "eslint-plugin-simple-import-sort": "^12.1.1",
+    "eslint-plugin-import-x": "^4.17.1",
+    "eslint-plugin-simple-import-sort": "^14.0.0",
     "eslint-plugin-unused-imports": "^4.1.4",
     "execa": "^10.0.0",
     "ink": "^7.1.1",
     "ink-testing-library": "^4.0.0",
     "jiti": "^2.7.0",
-    "neostandard": "^0.13.0",
+    "neostandard": "^0.14.1",
     "prettier": "^3.0.0",
     "react": "^19.2.8",
     "tsc-alias": "^1.8.2",

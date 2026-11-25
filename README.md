@@ -127,10 +127,11 @@ await wizard({
 
 ### Quickstart
 
+Use the Node.js and npm versions specified in the [Requirements](#requirements).
+
 ```
 $ git clone https://github.com/seamapi/wizard.git
 $ cd wizard
-$ nvm install
 $ npm install
 $ npm run test:watch
 ```
@@ -257,20 +258,8 @@ $ git clone git@github.com:seamapi/wizard.git
 
 ### Requirements
 
-You will need [Node.js] with [npm] and a [Node.js debugging] client.
-
-Be sure that all commands run under the correct Node version, e.g.,
-if using [nvm], install the correct version with
-
-```
-$ nvm install
-```
-
-Set the active version for each shell session with
-
-```
-$ nvm use
-```
+Use [Node.js] and [npm] versions that satisfy `devEngines` in [`package.json`](package.json).
+You will also need a [Node.js debugging] client.
 
 Install the development dependencies with
 
@@ -281,7 +270,6 @@ $ npm install
 [Node.js]: https://nodejs.org/
 [Node.js debugging]: https://nodejs.org/en/docs/guides/debugging-getting-started/
 [npm]: https://www.npmjs.com/
-[nvm]: https://github.com/creationix/nvm
 
 ### Publishing
 
